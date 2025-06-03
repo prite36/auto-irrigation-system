@@ -61,15 +61,76 @@ cp .env.example .env
 - `SCHEDULE_TIME`: Cron expression for scheduling (default: `0 6 * * *` for 6 AM daily)
 - `SCHEDULE_DURATION`: Duration in minutes (default: `10`)
 
-## Usage
+## Local Development
 
-1. Start your MQTT broker if it's not already running.
-2. Run the application:
+### Prerequisites
+
+1. Go (version 1.20 or later)
+2. PostgreSQL (version 15 or later)
+3. MQTT Broker (e.g., Mosquitto)
+
+### Setup
+
+1. Install dependencies:
    ```bash
-   ./irrigation
+   go mod tidy
    ```
 
-3. The application will start and begin monitoring the schedule.
+2. Configure your environment:
+   - Copy `.env.example` to `.env` if it exists
+   - Update the `.env` file with your configuration:
+     - Set MQTT broker connection details
+     - Configure database credentials
+     - Adjust schedule settings as needed
+
+3. Set up the database:
+   ```bash
+   # Create the database
+   createdb -U postgres auto-irrigation-system-db-local
+   
+   # Run migrations (if any)
+   # TODO: Add migration command if needed
+   ```
+
+4. Run the application:
+   ```bash
+   go run cmd/irrigation/main.go
+   ```
+
+### Running with Docker (Optional)
+
+1. Build the Docker image:
+   ```bash
+   docker build -t auto-irrigation-system .
+   ```
+
+2. Run the container:
+   ```bash
+   docker run -d --name irrigation-system \
+     -e MQTT_BROKER=tcp://192.168.50.66:1883 \
+     -e DB_HOST=host.docker.internal \
+     -e DB_PORT=15432 \
+     -e DB_USER=auto-irrigation-system-db \
+     -e DB_PASSWORD=oYAwJL3zPTPkvjBuibhS \
+     -e DB_NAME=auto-irrigation-system-db-local \
+     auto-irrigation-system
+   ```
+
+## Usage
+
+The application will start and begin monitoring the schedule.
+
+### Controlling the Sprinkler
+
+You can control the sprinkler via MQTT:
+
+```bash
+# Turn on sprinkler
+mosquitto_pub -h 192.168.50.66 -t "sprinkler/control" -m "on"
+
+# Turn off sprinkler
+mosquitto_pub -h 192.168.50.66 -t "sprinkler/control" -m "off"
+```
 
 ## MQTT Topics
 
