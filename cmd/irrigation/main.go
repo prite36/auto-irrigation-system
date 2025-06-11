@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/prite36/auto-irrigation-system/internal/config"
+	"github.com/prite36/auto-irrigation-system/internal/models"
 	"github.com/prite36/auto-irrigation-system/internal/mqtt"
 	"github.com/prite36/auto-irrigation-system/internal/scheduler"
 	"gorm.io/driver/postgres"
@@ -20,6 +21,18 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Initialize Database
+	db, err := gorm.Open(postgres.Open(cfg.DSN()), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Auto-migrate the schema
+	log.Println("Auto-migrating database schema...")
+	if err := db.AutoMigrate(&models.IrrigationHistory{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database schema: %v", err)
 	}
 
 	// Initialize MQTT Client
@@ -38,12 +51,6 @@ func main() {
 	deviceIDs := []string{"sprinkler_01", "sprinkler_02"} // You can load this from config
 	for _, id := range deviceIDs {
 		mqttClient.SubscribeToDeviceTopics(id)
-	}
-
-	// Initialize Database
-	db, err := gorm.Open(postgres.Open(cfg.DSN()), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
 	// Initialize Scheduler

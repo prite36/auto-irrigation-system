@@ -71,76 +71,69 @@ cp .env.example .env
 
 ### Setup
 
-1. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/auto-irrigation-system.git
+    cd auto-irrigation-system
+    ```
 
-2. Configure your environment:
-   - Copy `.env.example` to `.env` if it exists
-   - Update the `.env` file with your configuration:
-     - Set MQTT broker connection details
-     - Configure database credentials
-     - Adjust schedule settings as needed
+2.  **Configure Environment:**
+    Create a `.env` file in the root directory and populate it with your configuration. See the [Configuration](#configuration) section for details.
 
-3. Set up the database:
-   ```bash
-   # Create the database
-   createdb -U postgres auto-irrigation-system-db-local
-   
-   # Run migrations (if any)
-   # TODO: Add migration command if needed
-   ```
+3.  **Install Dependencies:**
+    ```bash
+    go mod tidy
+    ```
 
-4. Run the application:
-   ```bash
-   go run cmd/irrigation/main.go
-   ```
+4.  **Run the Application:**
+    ```bash
+    go run ./cmd/irrigation
+    ```
 
-### Running with Docker (Optional)
+## Configuration
 
-1. Build the Docker image:
-   ```bash
-   docker build -t auto-irrigation-system .
-   ```
+The application is configured using environment variables. Create a `.env` file in the project root or set these variables in your shell.
 
-2. Run the container:
-   ```bash
-   docker run -d --name irrigation-system \
-     -e MQTT_BROKER=tcp://192.168.50.66:1883 \
-     -e DB_HOST=host.docker.internal \
-     -e DB_PORT=15432 \
-     -e DB_USER=auto-irrigation-system-db \
-     -e DB_PASSWORD=oYAwJL3zPTPkvjBuibhS \
-     -e DB_NAME=auto-irrigation-system-db-local \
-     auto-irrigation-system
-   ```
-
-## Usage
-
-The application will start and begin monitoring the schedule.
-
-### Controlling the Sprinkler
-
-You can control the sprinkler via MQTT:
-
-```bash
-# Turn on sprinkler
-mosquitto_pub -h 192.168.50.66 -t "sprinkler/control" -m "on"
-
-# Turn off sprinkler
-mosquitto_pub -h 192.168.50.66 -t "sprinkler/control" -m "off"
-```
+| Variable              | Description                                      | Example                                  |
+| --------------------- | ------------------------------------------------ | ---------------------------------------- |
+| `MQTT_BROKER`         | URL of the MQTT broker.                          | `tcp://localhost:1883`                   |
+| `MQTT_CLIENT_ID`      | Unique client ID for the application.            | `auto-irrigation-system`                 |
+| `MQTT_USERNAME`       | (Optional) Username for MQTT authentication.     | `myuser`                                 |
+| `MQTT_PASSWORD`       | (Optional) Password for MQTT authentication.     | `mypassword`                             |
+| `DB_HOST`             | Hostname of the PostgreSQL database.             | `localhost`                              |
+| `DB_PORT`             | Port of the PostgreSQL database.                 | `5432`                                   |
+| `DB_USER`             | Username for the database.                       | `postgres`                               |
+| `DB_PASSWORD`         | Password for the database.                       | `password`                               |
+| `DB_NAME`             | Name of the database.                            | `irrigation_db`                          |
+| `DB_SSLMODE`          | SSL mode for the database connection.            | `disable`                                |
+| `SCHEDULE_TIME`       | Time to run the irrigation schedule (HH:MM).     | `07:00`                                  |
+| `SCHEDULE_DURATION`   | Duration for the irrigation in minutes.          | `30`                                     |
 
 ## MQTT Topics
 
-- `sprinkler/control`: Used to control the sprinkler
-  - Publish `on` to turn on the sprinkler
-  - Publish `off` to turn off the sprinkler
+The system uses a device-specific topic structure. Replace `<deviceID>` with the actual ID of your sprinkler (e.g., `sprinkler_01`).
+
+### Control Topics
+
+-   `<deviceID>/control/valve/position`: Publish a float value (e.g., `90.0`) to set the valve position.
+-   `<deviceID>/control/sprinkler/position`: Publish a float value (e.g., `-45.5`) to set the sprinkler's rotational position.
+
+### Status Topics (Read-only)
+
+The application subscribes to these topics to get real-time status from each device.
+
+-   `<deviceID>/status/sprinkler/position`
+-   `<deviceID>/status/valve/position`
+-   `<deviceID>/status/sprinkler/calib_complete`
+-   `<deviceID>/status/valve/calib_complete`
+-   `<deviceID>/status/valve/is_at_target`
+-   `<deviceID>/status/task/current_index`
+-   `<deviceID>/status/task/current_count`
+-   `<deviceID>/status/task/array`
 
 ## Database
 
-The application uses SQLite to store irrigation history. The database file is created automatically at `irrigation.db`.
+The application uses a **PostgreSQL** database to store irrigation history. The database schema is automatically migrated on application startup.
 
 ## Project Structure
 
@@ -150,11 +143,11 @@ The application uses SQLite to store irrigation history. The database file is cr
 │   └── irrigation/
 │       └── main.go          # Application entry point
 ├── internal/
-│   ├── config/            # Configuration structures
+│   ├── config/            # Configuration loading and structs
+│   ├── models/             # Database and data models
 │   ├── mqtt/               # MQTT client implementation
-│   ├── models/             # Database models
-│   ├── scheduler/          # Scheduling logic
-│   └── service/            # Application service layer
+│   └── scheduler/          # Scheduling logic
+├── .env.example           # Example environment file
 ├── go.mod
 └── README.md
 ```
