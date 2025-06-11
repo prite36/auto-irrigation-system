@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/prite36/auto-irrigation-system/internal/mqtt"
 	"github.com/prite36/auto-irrigation-system/internal/models"
+	"github.com/prite36/auto-irrigation-system/internal/mqtt"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
@@ -62,8 +62,12 @@ func (s *Scheduler) runIrrigation() {
 		return
 	}
 
+	// For now, we assume the scheduled task controls a single, hardcoded device.
+	// This could be made configurable in the future.
+	deviceID := "sprinkler_01"
+
 	// Turn on the sprinkler
-	if err := s.mqttClient.PublishSprinklerControl(true); err != nil {
+	if err := s.mqttClient.PublishSprinklerControl(deviceID, true); err != nil {
 		s.handleError(record, fmt.Errorf("failed to turn on sprinkler: %w", err))
 		return
 	}
@@ -72,7 +76,7 @@ func (s *Scheduler) runIrrigation() {
 	time.Sleep(s.duration)
 
 	// Turn off the sprinkler
-	if err := s.mqttClient.PublishSprinklerControl(false); err != nil {
+	if err := s.mqttClient.PublishSprinklerControl(deviceID, false); err != nil {
 		s.handleError(record, fmt.Errorf("failed to turn off sprinkler: %w", err))
 		return
 	}
