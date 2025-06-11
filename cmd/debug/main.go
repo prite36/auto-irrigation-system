@@ -3,9 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/prite36/auto-irrigation-system/internal/config"
 	"github.com/prite36/auto-irrigation-system/internal/models"
@@ -65,16 +62,9 @@ func main() {
 	// Initialize Scheduler
 	scheduler := scheduler.NewScheduler(cfg, mqttClient, db)
 
-	// Start the scheduler
-	scheduler.Start()
-	defer scheduler.Stop()
+	// Run the job directly
+	log.Println("Executing RunJob directly...")
+	scheduler.RunJob()
 
-	log.Println("Application is running. Press CTRL+C to exit.")
-
-	// Wait for a shutdown signal
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
-
-	log.Println("Application shutting down.")
+	log.Println("Debug run finished.")
 }

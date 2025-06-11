@@ -1,7 +1,6 @@
 package mqtt
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -13,14 +12,14 @@ import (
 	"github.com/prite36/auto-irrigation-system/internal/models"
 )
 
-// Client handles MQTT connections, subscriptions, and stores device statuses.
+// Client manages the MQTT connection and subscriptions.
 type Client struct {
 	client            mqtt.Client
-	DeviceStatuses    *sync.Map
-	subscribedDevices *sync.Map // To keep track of devices to re-subscribe on reconnect
+	deviceStatuses    sync.Map // Maps deviceID (string) to *models.SprinklerStatus
+	subscribedDevices sync.Map // To track which devices we are subscribed to
 }
 
-// NewClient creates and configures a new MQTT Client.
+// NewClient creates and configures a new MQTT client.
 func NewClient(broker, clientID, username, password string) (*Client, error) {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(broker)
@@ -29,29 +28,26 @@ func NewClient(broker, clientID, username, password string) (*Client, error) {
 	opts.SetPassword(password)
 	opts.SetAutoReconnect(true)
 	opts.SetConnectRetry(true)
+	opts.SetConnectTimeout(30 * time.Second)
 
-	c := &Client{
-		DeviceStatuses:    &sync.Map{},
-		subscribedDevices: &sync.Map{},
-	}
-
+	c := &Client{}
 	opts.SetDefaultPublishHandler(c.messageHandler)
-	opts.OnConnect = c.onConnectHandler
-	opts.OnConnectionLost = c.connectionLostHandler
+	opts.SetOnConnectHandler(c.onConnectHandler)
+	opts.SetConnectionLostHandler(c.connectionLostHandler)
 
 	client := mqtt.NewClient(opts)
-	c.client = client
-	if token := c.client.Connect(); token.Wait() && token.Error() != nil {
-		return nil, token.Error()
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		return nil, fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
 	}
 
+	c.client = client
 	return c, nil
 }
 
-// onConnectHandler is called upon a successful connection.
+// onConnectHandler is called when the client connects or reconnects.
 func (c *Client) onConnectHandler(client mqtt.Client) {
-	log.Println("Connected to MQTT broker")
-	// Re-subscribe to all known devices
+	log.Println("Connected to MQTT broker.")
+	// Re-subscribe to topics for all previously subscribed devices
 	c.subscribedDevices.Range(func(key, value interface{}) bool {
 		deviceID := key.(string)
 		log.Printf("Re-subscribing to topics for device: %s", deviceID)
@@ -65,25 +61,23 @@ func (c *Client) connectionLostHandler(client mqtt.Client, err error) {
 	log.Printf("Connection to MQTT broker lost: %v", err)
 }
 
-// messageHandler is the default handler for incoming messages.
+// messageHandler processes incoming MQTT messages.
 func (c *Client) messageHandler(client mqtt.Client, msg mqtt.Message) {
-	log.Printf("Received message: '%s' from topic: %s\n", msg.Payload(), msg.Topic())
+	log.Printf("Received message on topic: %s with payload: %s", msg.Topic(), msg.Payload())
 
-	topicParts := strings.Split(msg.Topic(), "/")
-	if len(topicParts) < 3 { // e.g., <deviceID>/status/sprinkler/position
-		log.Printf("Ignoring message from unexpected topic format: %s", msg.Topic())
+	parts := strings.Split(msg.Topic(), "/")
+	if len(parts) < 3 {
+		log.Printf("Warning: Received message on unexpected topic format: %s", msg.Topic())
 		return
 	}
-	deviceID := topicParts[0]
-
-	// Load or create the status for the device
-	value, _ := c.DeviceStatuses.LoadOrStore(deviceID, &models.SprinklerStatus{DeviceID: deviceID})
-	status := value.(*models.SprinklerStatus)
-
+	deviceID := parts[0]
 	payloadStr := string(msg.Payload())
 
+	// Get or create the status object for the device. IMPORTANT: Store POINTERS in the map.
+	value, _ := c.deviceStatuses.LoadOrStore(deviceID, &models.SprinklerStatus{DeviceID: deviceID})
+	status := value.(*models.SprinklerStatus)
+
 	var err error
-	// Update status based on topic
 	switch {
 	case strings.HasSuffix(msg.Topic(), "/status/sprinkler/position"):
 		status.SprinklerPosition, err = strconv.ParseFloat(payloadStr, 64)
@@ -93,93 +87,79 @@ func (c *Client) messageHandler(client mqtt.Client, msg mqtt.Message) {
 		status.SprinklerCalibComplete, err = strconv.ParseBool(payloadStr)
 	case strings.HasSuffix(msg.Topic(), "/status/valve/calib_complete"):
 		status.ValveCalibComplete, err = strconv.ParseBool(payloadStr)
-	case strings.HasSuffix(msg.Topic(), "/status/valve/is_at_target"):
+	case strings.HasSuffix(msg.Topic(), "/status/valve/target"):
 		status.ValveIsAtTarget, err = strconv.ParseBool(payloadStr)
 	case strings.HasSuffix(msg.Topic(), "/status/task/current_index"):
 		status.TaskCurrentIndex, err = strconv.Atoi(payloadStr)
 	case strings.HasSuffix(msg.Topic(), "/status/task/current_count"):
 		status.TaskCurrentCount, err = strconv.Atoi(payloadStr)
+	case strings.HasSuffix(msg.Topic(), "/status/task/all_complete"):
+		status.TaskAllComplete, err = strconv.ParseBool(payloadStr)
 	case strings.HasSuffix(msg.Topic(), "/status/task/array"):
 		status.TaskArray = payloadStr
 	default:
-		log.Printf("Unhandled topic: %s", msg.Topic())
-		return
+		log.Printf("Warning: No handler for topic: %s", msg.Topic())
+		return // No need to store status again if topic is unknown
 	}
 
 	if err != nil {
-		log.Printf("Failed to parse value '%s' for topic %s: %v", payloadStr, msg.Topic(), err)
+		log.Printf("Error parsing payload for topic %s: %v", msg.Topic(), err)
 		return
 	}
 
-	// Store the updated status back into the map
-	c.DeviceStatuses.Store(deviceID, status)
-
-	// For debugging: print the current state
-	currentState, jsonErr := json.Marshal(status)
-	if jsonErr != nil {
-		log.Printf("Error marshalling status to JSON for device %s: %v", deviceID, jsonErr)
-		return
-	}
-	log.Printf("Updated status for %s: %s", deviceID, string(currentState))
+	// No need to store back, as we are modifying the pointer.
 }
 
-// SubscribeToDeviceTopics subscribes to all relevant topics for a given device ID.
-func (c *Client) SubscribeToDeviceTopics(deviceID string) {
-	// Store the device ID for re-subscription on reconnect
-	c.subscribedDevices.Store(deviceID, true)
-
-	topics := map[string]byte{
-		fmt.Sprintf("%s/status/sprinkler/position", deviceID):       1,
-		fmt.Sprintf("%s/status/valve/position", deviceID):           1,
-		fmt.Sprintf("%s/status/sprinkler/calib_complete", deviceID): 1,
-		fmt.Sprintf("%s/status/valve/calib_complete", deviceID):     1,
-		fmt.Sprintf("%s/status/valve/is_at_target", deviceID):       1,
-		fmt.Sprintf("%s/status/task/current_index", deviceID):       1,
-		fmt.Sprintf("%s/status/task/current_count", deviceID):       1,
-		fmt.Sprintf("%s/status/task/array", deviceID):               1,
+// Publish sends a message to a given topic.
+func (c *Client) Publish(topic, payload string) {
+	if token := c.client.Publish(topic, 1, false, payload); token.Wait() && token.Error() != nil {
+		log.Printf("Failed to publish to topic %s: %v", topic, token.Error())
 	}
-
-	if c.client.IsConnected() {
-		if token := c.client.SubscribeMultiple(topics, nil); token.Wait() && token.Error() != nil {
-			log.Printf("Error subscribing to topics for %s: %v", deviceID, token.Error())
-			return
-		}
-		log.Printf("Subscribed to all topics for device: %s", deviceID)
-	}
-}
-
-// GetDeviceStatus retrieves the status of a specific device.
-func (c *Client) GetDeviceStatus(deviceID string) (*models.SprinklerStatus, bool) {
-	value, ok := c.DeviceStatuses.Load(deviceID)
-	if !ok {
-		return nil, false
-	}
-	return value.(*models.SprinklerStatus), true
-}
-
-// PublishSprinklerControl sends a command to turn a sprinkler on or off.
-func (c *Client) PublishSprinklerControl(deviceID string, state bool) error {
-	payload := "off"
-	if state {
-		payload = "on"
-	}
-	topic := fmt.Sprintf("%s/sprinkler/control/turn", deviceID)
-
-	token := c.client.Publish(topic, 1, false, payload)
-	if !token.WaitTimeout(5 * time.Second) {
-		return fmt.Errorf("timeout publishing to topic %s", topic)
-	}
-	if token.Error() != nil {
-		return fmt.Errorf("error publishing to topic %s: %w", topic, token.Error())
-	}
-
-	log.Printf("Published '%s' to topic '%s'\n", payload, topic)
-	return nil
 }
 
 // Close disconnects the MQTT client.
 func (c *Client) Close() {
-	if c.client != nil && c.client.IsConnected() {
-		c.client.Disconnect(250)
+	c.client.Disconnect(250)
+	log.Println("MQTT client disconnected.")
+}
+
+// SubscribeToDeviceTopics subscribes to all relevant status topics for a given device.
+func (c *Client) SubscribeToDeviceTopics(deviceID string) {
+	// Mark this device as one we want to be subscribed to, for reconnections.
+	c.subscribedDevices.Store(deviceID, true)
+
+	topics := map[string]byte{
+		fmt.Sprintf("%s/status/sprinkler/position", deviceID):       0,
+		fmt.Sprintf("%s/status/valve/position", deviceID):           0,
+		fmt.Sprintf("%s/status/sprinkler/calib_complete", deviceID): 0,
+		fmt.Sprintf("%s/status/valve/calib_complete", deviceID):     0,
+		fmt.Sprintf("%s/status/valve/target", deviceID):             0,
+		fmt.Sprintf("%s/status/task/current_index", deviceID):       0,
+		fmt.Sprintf("%s/status/task/current_count", deviceID):       0,
+		fmt.Sprintf("%s/status/task/all_complete", deviceID):        0,
+		fmt.Sprintf("%s/status/task/array", deviceID):               0,
 	}
+
+	for topic := range topics {
+		if token := c.client.Subscribe(topic, 1, nil); token.Wait() && token.Error() != nil {
+			log.Printf("Failed to subscribe to topic %s: %v", topic, token.Error())
+		} else {
+			log.Printf("Subscribed to topic: %s", topic)
+		}
+	}
+}
+
+// GetDeviceStatus safely retrieves the status for a given device ID.
+func (c *Client) GetDeviceStatus(deviceID string) *models.SprinklerStatus {
+	value, ok := c.deviceStatuses.Load(deviceID)
+	if !ok {
+		return nil // No status found for this device yet
+	}
+	return value.(*models.SprinklerStatus)
+}
+
+// ResetDeviceStatus resets the status for a device, typically before a new operation.
+func (c *Client) ResetDeviceStatus(deviceID string) {
+	log.Printf("Resetting status for device %s", deviceID)
+	c.deviceStatuses.Store(deviceID, &models.SprinklerStatus{DeviceID: deviceID})
 }

@@ -40,5 +40,6 @@ type SprinklerStatus struct {
 	ValveIsAtTarget           bool    `json:"valveIsAtTarget"`
 	TaskCurrentIndex          int     `json:"taskCurrentIndex"`
 	TaskCurrentCount          int     `json:"taskCurrentCount"`
+	TaskAllComplete           bool    `json:"taskAllComplete"`
 	TaskArray                 string  `json:"taskArray"` // Storing as raw JSON string
 }

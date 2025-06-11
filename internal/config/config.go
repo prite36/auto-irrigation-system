@@ -1,139 +1,96 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"reflect"
-	"strconv"
-	"strings"
 
-	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
 type MQTTConfig struct {
-	Broker   string `env:"MQTT_BROKER" required:"true"`
-	ClientID string `env:"MQTT_CLIENT_ID"`
-	Username string `env:"MQTT_USERNAME"`
-	Password string `env:"MQTT_PASSWORD"`
+	Broker   string `mapstructure:"MQTT_BROKER"`
+	ClientID string `mapstructure:"MQTT_CLIENT_ID"`
+	Username string `mapstructure:"MQTT_USERNAME"`
+	Password string `mapstructure:"MQTT_PASSWORD"`
 }
 
 type DatabaseConfig struct {
-	Host     string `env:"DB_HOST" required:"true"`
-	Port     int    `env:"DB_PORT" required:"true"`
-	User     string `env:"DB_USER" required:"true"`
-	Password string `env:"DB_PASSWORD"`
-	DBName   string `env:"DB_NAME" required:"true"`
-	SSLMode  string `env:"DB_SSLMODE"`
+	Host     string `mapstructure:"DB_HOST"`
+	Port     int    `mapstructure:"DB_PORT"`
+	User     string `mapstructure:"DB_USER"`
+	Password string `mapstructure:"DB_PASSWORD"`
+	DBName   string `mapstructure:"DB_NAME"`
+	SSLMode  string `mapstructure:"DB_SSLMODE"`
 }
 
 type ScheduleConfig struct {
-	Time     string `env:"SCHEDULE_TIME" required:"true"`     // Cron format (e.g., "0 6 * * *" for 6 AM daily)
-	Duration int    `env:"SCHEDULE_DURATION" required:"true"` // Duration in minutes
+	Times    string `mapstructure:"SCHEDULE_TIMES"` // Comma-separated e.g., "07:00,17:00"
+	Duration int    `mapstructure:"SCHEDULE_DURATION"`
+}
+
+// DeviceConfig defines a single sprinkler device and its associated task IDs.
+type DeviceConfig struct {
+	ID      string   `json:"id"`
+	TaskIDs []string `json:"taskIds"`
 }
 
 type Config struct {
-	MQTT     MQTTConfig
-	Database DatabaseConfig
-	Schedule ScheduleConfig
+	MQTT          MQTTConfig     `mapstructure:",squash"`
+	Database      DatabaseConfig `mapstructure:",squash"`
+	Schedule      ScheduleConfig `mapstructure:",squash"`
+	Devices       []DeviceConfig `json:"devices"`
+	DeviceCfgPath string         `mapstructure:"DEVICE_CONFIG_PATH"`
 }
 
-// envLoader is a helper to load environment variables into a struct
-type envLoader struct {
-	errors []error
-}
-
-// load loads environment variables into the provided struct based on tags
-func (l *envLoader) load(cfg interface{}) error {
-	val := reflect.ValueOf(cfg).Elem()
-	typ := val.Type()
-
-	for i := 0; i < val.NumField(); i++ {
-		field := val.Field(i)
-		fieldType := typ.Field(i)
-
-		// Skip unexported fields
-		if !field.CanSet() {
-			continue
-		}
-
-		envTag := fieldType.Tag.Get("env")
-		if envTag == "" {
-			continue
-		}
-
-		envKey := strings.ToUpper(fieldType.Name)
-		if envTag != "-" {
-			envKey = envTag
-		}
-
-		envValue, exists := os.LookupEnv(envKey)
-		if !exists || envValue == "" {
-			if fieldType.Tag.Get("required") == "true" {
-				l.errors = append(l.errors, fmt.Errorf("required environment variable %s is not set", envKey))
-			}
-			continue
-		}
-
-		switch field.Kind() {
-		case reflect.String:
-			field.SetString(envValue)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			intVal, err := strconv.ParseInt(envValue, 10, 64)
-			if err != nil {
-				l.errors = append(l.errors, fmt.Errorf("environment variable %s must be an integer: %v", envKey, err))
-				continue
-			}
-			field.SetInt(intVal)
-		case reflect.Bool:
-			boolVal, err := strconv.ParseBool(envValue)
-			if err != nil {
-				l.errors = append(l.errors, fmt.Errorf("environment variable %s must be a boolean: %v", envKey, err))
-				continue
-			}
-			field.SetBool(boolVal)
-		}
-	}
-
-	if len(l.errors) > 0 {
-		return fmt.Errorf("configuration error: %v", l.errors)
-	}
-	return nil
-}
-
-// LoadConfig loads configuration from environment variables
+// LoadConfig reads configuration from a .env file and environment variables,
+// and also loads a separate device configuration JSON file.
 func LoadConfig() (*Config, error) {
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+	// Configure viper for .env file and environment variables
+	v := viper.New()
+	v.SetConfigFile(".env")
+	v.SetConfigType("env")
+	v.AutomaticEnv() // Read in environment variables that match
+
+	// If a config file is found, read it in.
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Config file not found; ignore error if desired
+			log.Println("Warning: .env file not found, relying on environment variables.")
+		} else {
+			// Config file was found but another error was produced
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
 	}
 
-	loader := &envLoader{}
-	// Config{} - สร้าง instance ใหม่ของ struct Config
-	// & - ดึง memory address ของ instance นั้น (pointer)
-	cfg := &Config{}
-
-	// Load MQTT config
-	if err := loader.load(&cfg.MQTT); err != nil {
-		return nil, err
+	var config Config
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("unable to decode config into struct, %v", err)
 	}
 
-	// Load Database config
-	if err := loader.load(&cfg.Database); err != nil {
-		return nil, err
+	// Load device configurations from the specified JSON file
+	if config.DeviceCfgPath != "" {
+		jsonFile, err := os.Open(config.DeviceCfgPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open device config file '%s': %w", config.DeviceCfgPath, err)
+		}
+		defer jsonFile.Close()
+
+		byteValue, err := io.ReadAll(jsonFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read device config file: %w", err)
+		}
+
+		// The JSON structure should be an object with a "devices" key, e.g. { "devices": [ ... ] }
+		// We unmarshal into the config struct which has the `json:"devices"` tag on the Devices field.
+		if err := json.Unmarshal(byteValue, &config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal device config JSON: %w", err)
+		}
 	}
 
-	// Load Schedule config
-	if err := loader.load(&cfg.Schedule); err != nil {
-		return nil, err
-	}
-
-	// Check for any loading errors
-	if len(loader.errors) > 0 {
-		return nil, fmt.Errorf("configuration errors: %v", loader.errors)
-	}
-
-	return cfg, nil
+	return &config, nil
 }
 
 // DefaultConfig is kept for backward compatibility but will be removed in the future
