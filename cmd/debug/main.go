@@ -9,6 +9,7 @@ import (
 	"github.com/prite36/auto-irrigation-system/internal/models"
 	"github.com/prite36/auto-irrigation-system/internal/mqtt"
 	"github.com/prite36/auto-irrigation-system/internal/scheduler"
+	"github.com/prite36/auto-irrigation-system/internal/slack"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -60,8 +61,11 @@ func main() {
 		mqttClient.SubscribeToDeviceTopics(device.ID)
 	}
 
+		// Initialize Slack Client
+	slackClient := slack.NewClient(cfg.Slack.BotToken, cfg.Slack.ChannelID)
+
 	// Initialize Scheduler
-	scheduler := scheduler.NewScheduler(cfg, mqttClient, db)
+	scheduler := scheduler.NewScheduler(cfg, mqttClient, db, slackClient)
 
 	time.Sleep(10 * time.Second)
 	// Run the job directly

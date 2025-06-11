@@ -31,6 +31,13 @@ type ScheduleConfig struct {
 	Duration int    `mapstructure:"SCHEDULE_DURATION"`
 }
 
+// SlackConfig holds the configuration for Slack notifications.
+type SlackConfig struct {
+	BotToken      string `mapstructure:"SLACK_BOT_TOKEN"`
+	ChannelID     string `mapstructure:"SLACK_CHANNEL_ID"`
+	SigningSecret string `mapstructure:"SLACK_SIGNING_SECRET"`
+}
+
 // DeviceConfig defines a single sprinkler device and its associated task IDs.
 type DeviceConfig struct {
 	ID      string   `json:"id"`
@@ -38,10 +45,11 @@ type DeviceConfig struct {
 }
 
 type Config struct {
-	MQTT          MQTTConfig     `mapstructure:",squash"`
-	Database      DatabaseConfig `mapstructure:",squash"`
-	Schedule      ScheduleConfig `mapstructure:",squash"`
-	Devices       []DeviceConfig `json:"devices"`
+	MQTT     MQTTConfig     `mapstructure:",squash"`
+	Database DatabaseConfig `mapstructure:",squash"`
+	Schedule ScheduleConfig `mapstructure:",squash"`
+	Slack    SlackConfig    `mapstructure:",squash"` // Added Slack configuration
+	Devices  []DeviceConfig `json:"devices"`
 	DeviceCfgPath string         `mapstructure:"DEVICE_CONFIG_PATH"`
 }
 

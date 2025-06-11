@@ -1,16 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/prite36/auto-irrigation-system/internal/config"
 	"github.com/prite36/auto-irrigation-system/internal/models"
 	"github.com/prite36/auto-irrigation-system/internal/mqtt"
 	"github.com/prite36/auto-irrigation-system/internal/scheduler"
+	"github.com/prite36/auto-irrigation-system/internal/server"
+	"github.com/prite36/auto-irrigation-system/internal/slack"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -62,19 +67,43 @@ func main() {
 		mqttClient.SubscribeToDeviceTopics(device.ID)
 	}
 
-	// Initialize Scheduler
-	scheduler := scheduler.NewScheduler(cfg, mqttClient, db)
+	// Initialize Slack Client
+	slackClient := slack.NewClient(cfg.Slack.BotToken, cfg.Slack.ChannelID)
 
-	// Start the scheduler
-	scheduler.Start()
+	// Initialize Scheduler
+	scheduler := scheduler.NewScheduler(cfg, mqttClient, db, slackClient)
+
+	// Initialize the API server
+	srv := server.New(cfg, scheduler)
+
+	// Start services in goroutines
+	go func() {
+		log.Println("Starting scheduler...")
+		scheduler.Start()
+	}()
 	defer scheduler.Stop()
 
-	log.Println("Application is running. Press CTRL+C to exit.")
+	go func() {
+		log.Println("Starting API server on port 3005...")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("API server listen: %s\n", err)
+		}
+	}()
 
-	// Wait for a shutdown signal
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
+	log.Println("Application is running with both Scheduler and API Server. Press CTRL+C to exit.")
 
-	log.Println("Application shutting down.")
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down application...")
+
+	// Shutdown API server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Application exiting.")
 }

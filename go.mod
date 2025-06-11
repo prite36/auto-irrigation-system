@@ -7,6 +7,7 @@ replace github.com/prite36/auto-irrigation-system => ./
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/go-co-op/gocron v1.37.0
+	github.com/slack-go/slack v0.17.1 // Added for Slack notifications
 	github.com/spf13/viper v1.20.1
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.26.1

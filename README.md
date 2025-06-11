@@ -61,6 +61,11 @@ cp .env.example .env
 - `SCHEDULE_TIME`: Cron expression for scheduling (default: `0 6 * * *` for 6 AM daily)
 - `SCHEDULE_DURATION`: Duration in minutes (default: `10`)
 
+#### Slack Configuration
+- `SLACK_BOT_TOKEN`: Your Slack bot token (for sending notifications).
+- `SLACK_CHANNEL_ID`: The ID of the Slack channel to send notifications to.
+- `SLACK_SIGNING_SECRET`: Your Slack app's signing secret (for verifying incoming events).
+
 ## Local Development
 
 ### Prerequisites
@@ -86,6 +91,7 @@ cp .env.example .env
     ```
 
 4.  **Run the Application:**
+    The main application now runs both the background scheduler and the API server in a single process.
     ```bash
     go run ./cmd/irrigation
     ```

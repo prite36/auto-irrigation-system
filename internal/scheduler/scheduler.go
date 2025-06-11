@@ -13,12 +13,9 @@ import (
 	"github.com/prite36/auto-irrigation-system/internal/config"
 	"github.com/prite36/auto-irrigation-system/internal/models"
 	"github.com/prite36/auto-irrigation-system/internal/mqtt"
+	"github.com/prite36/auto-irrigation-system/internal/slack"
+	slackclient "github.com/slack-go/slack"
 	"gorm.io/gorm"
-)
-
-const (
-	calibrationTimeout = 30 * time.Second
-	publishDelay       = 3 * time.Second
 )
 
 // TaskDefinition represents the structure of a task JSON file.
@@ -29,24 +26,22 @@ type TaskDefinition struct {
 
 // Scheduler manages the scheduling of irrigation tasks.
 type Scheduler struct {
-	scheduler  *gocron.Scheduler
-	cfg        *config.Config
-	mqttClient *mqtt.Client
-	db         *gorm.DB
+	scheduler   *gocron.Scheduler
+	cfg         *config.Config
+	mqttClient  *mqtt.Client
+	db          *gorm.DB
+	slackClient *slack.Client
 }
 
 // NewScheduler creates a new scheduler instance.
-func NewScheduler(cfg *config.Config, mqttClient *mqtt.Client, db *gorm.DB) *Scheduler {
-	loc, err := time.LoadLocation("Asia/Bangkok")
-	if err != nil {
-		log.Fatalf("Failed to load location: %v", err)
-	}
-	s := gocron.NewScheduler(loc)
+func NewScheduler(cfg *config.Config, mqttClient *mqtt.Client, db *gorm.DB, slackClient *slack.Client) *Scheduler {
+	s := gocron.NewScheduler(time.UTC)
 	return &Scheduler{
-		scheduler:  s,
-		cfg:        cfg,
-		mqttClient: mqttClient,
-		db:         db,
+		scheduler:   s,
+		cfg:         cfg,
+		mqttClient:  mqttClient,
+		db:          db,
+		slackClient: slackClient,
 	}
 }
 
@@ -77,15 +72,18 @@ func (s *Scheduler) Stop() {
 // It can also be called directly for debugging purposes.
 func (s *Scheduler) RunJob() {
 	log.Println("Starting scheduled irrigation run...")
+	s.notifySlackRich(slack.NewInfoMessage("🚀 Job Started", "Scheduled irrigation run has commenced."))
 
 	for _, device := range s.cfg.Devices {
 		if err := s.processDevice(device); err != nil {
 			log.Printf("Error processing device %s: %v. Halting further processing in this run.", device.ID, err)
+			s.notifySlackRich(slack.NewErrorMessage("🚨 ERROR: Device Processing", fmt.Sprintf("Error processing device %s: %v", device.ID, err)))
 			break
 		}
 	}
 
-	log.Println("Scheduled irrigation run finished.")
+	log.Printf("Scheduled irrigation run finished.")
+	s.notifySlackRich(slack.NewSuccessMessage("✅ Job Completed", "Finished processing all devices for the scheduled run."))
 }
 
 // processDevice handles the full workflow for a single device.
@@ -139,6 +137,9 @@ func (s *Scheduler) runCalibration(device config.DeviceConfig, history *models.I
 			history.Status = "SPRINKLER_CALIB_TIMEOUT"
 			history.Notes = "Sprinkler calibration timed out."
 			s.db.Save(history)
+			errMsg := fmt.Sprintf("Timeout waiting for sprinkler calibration on device %s", device.ID)
+			log.Printf(errMsg)
+			s.notifySlackRich(slack.NewErrorMessage("🚨 Calibration Timeout", errMsg))
 			return fmt.Errorf("sprinkler calibration for device %s timed out: %w", device.ID, err)
 		}
 		log.Printf("Sprinkler calibration completed for device %s", device.ID)
@@ -158,6 +159,9 @@ func (s *Scheduler) runCalibration(device config.DeviceConfig, history *models.I
 			history.Status = "VALVE_CALIB_TIMEOUT"
 			history.Notes = "Valve calibration timed out."
 			s.db.Save(history)
+			errMsg := fmt.Sprintf("Timeout waiting for valve calibration on device %s", device.ID)
+			log.Printf(errMsg)
+			s.notifySlackRich(slack.NewErrorMessage("🚨 Calibration Timeout", errMsg))
 			return fmt.Errorf("valve calibration for device %s timed out: %w", device.ID, err)
 		}
 		log.Printf("Valve calibration completed for device %s", device.ID)
@@ -185,6 +189,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 			history.Status = "TASK_ERROR"
 			history.Notes = errMsg
 			s.db.Save(history)
+			s.notifySlackRich(slack.NewErrorMessage("🚨 Task Error", errMsg))
 			return fmt.Errorf("%s: %w", errMsg, err)
 		}
 
@@ -194,6 +199,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 			history.Status = "TASK_ERROR"
 			history.Notes = errMsg
 			s.db.Save(history)
+			s.notifySlackRich(slack.NewErrorMessage("🚨 Task Error", errMsg))
 			return fmt.Errorf("%s: %w", errMsg, err)
 		}
 
@@ -217,6 +223,9 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 			history.Status = "TASK_TIMEOUT"
 			history.Notes = fmt.Sprintf("Task '%s' for device '%s' timed out after %d minutes.", taskID, device.ID, taskDef.TimeoutMinutes)
 			s.db.Save(history)
+			errMsg := fmt.Sprintf("Device %s, Task %s: Timeout waiting for completion", device.ID, taskID)
+			log.Printf(errMsg)
+			s.notifySlackRich(slack.NewErrorMessage("🚨 Task Timeout", errMsg))
 			return fmt.Errorf("task '%s' for device '%s' timed out: %w", taskID, device.ID, err)
 		}
 
@@ -247,5 +256,12 @@ func (s *Scheduler) waitForFlag(deviceID string, timeout time.Duration, checkFun
 			}
 			log.Printf("Waiting for flag condition for device %s...", deviceID)
 		}
+	}
+}
+
+// notifySlackRich sends a rich message to Slack if the client is configured.
+func (s *Scheduler) notifySlackRich(options slackclient.MsgOption) {
+	if s.slackClient != nil {
+		s.slackClient.SendRichMessage(options)
 	}
 }
