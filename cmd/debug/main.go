@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/prite36/auto-irrigation-system/internal/config"
 	"github.com/prite36/auto-irrigation-system/internal/models"
@@ -62,6 +63,7 @@ func main() {
 	// Initialize Scheduler
 	scheduler := scheduler.NewScheduler(cfg, mqttClient, db)
 
+	time.Sleep(10 * time.Second)
 	// Run the job directly
 	log.Println("Executing RunJob directly...")
 	scheduler.RunJob()

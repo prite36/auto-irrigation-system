@@ -23,8 +23,8 @@ const (
 
 // TaskDefinition represents the structure of a task JSON file.
 type TaskDefinition struct {
-	Payload        string `json:"payload"`
-	TimeoutMinutes int    `json:"timeoutMinutes"`
+	Payload        json.RawMessage `json:"payload"`
+	TimeoutMinutes int             `json:"timeoutMinutes"`
 }
 
 // Scheduler manages the scheduling of irrigation tasks.
@@ -122,38 +122,48 @@ func (s *Scheduler) processDevice(device config.DeviceConfig) error {
 
 // runCalibration handles the calibration sequence for a device.
 func (s *Scheduler) runCalibration(device config.DeviceConfig, history *models.IrrigationHistory) error {
-	log.Printf("Starting calibration for device %s...", device.ID)
-	s.mqttClient.ResetDeviceStatus(device.ID)
+	log.Printf("Starting calibration check for device %s...", device.ID)
 
-	// Calibrate Sprinkler
-	s.mqttClient.Publish(fmt.Sprintf("%s/cmd/sprinkler/home", device.ID), "1")
-	if err := s.waitForFlag(device.ID, 5*time.Minute, func(status *models.SprinklerStatus) bool {
-		if status == nil {
-			return false
+	// Get current device status
+	currentStatus := s.mqttClient.GetDeviceStatus(device.ID)
+
+	// --- Calibrate Sprinkler ---
+	if currentStatus != nil && currentStatus.SprinklerCalibComplete {
+		log.Printf("Sprinkler for device %s is already calibrated. Skipping.", device.ID)
+	} else {
+		log.Printf("Calibrating sprinkler for device %s...", device.ID)
+		s.mqttClient.Publish(fmt.Sprintf("%s/cmd/sprinkler/home", device.ID), "1")
+		if err := s.waitForFlag(device.ID, 5*time.Minute, func(status *models.SprinklerStatus) bool {
+			return status != nil && status.SprinklerCalibComplete
+		}); err != nil {
+			history.Status = "SPRINKLER_CALIB_TIMEOUT"
+			history.Notes = "Sprinkler calibration timed out."
+			s.db.Save(history)
+			return fmt.Errorf("sprinkler calibration for device %s timed out: %w", device.ID, err)
 		}
-		return status.SprinklerCalibComplete
-	}); err != nil {
-		history.Status = "CALIB_TIMEOUT"
-		history.Notes = "Sprinkler calibration timed out."
-		s.db.Save(history)
-		return fmt.Errorf("sprinkler calibration for device %s timed out: %w", device.ID, err)
+		log.Printf("Sprinkler calibration completed for device %s", device.ID)
 	}
 
-	// Calibrate Valve
-	s.mqttClient.Publish(fmt.Sprintf("%s/cmd/valve/home", device.ID), "1")
-	if err := s.waitForFlag(device.ID, 5*time.Minute, func(status *models.SprinklerStatus) bool {
-		if status == nil {
-			return false
+	// --- Calibrate Valve ---
+	// Re-fetch status in case it was updated during sprinkler calibration
+	currentStatus = s.mqttClient.GetDeviceStatus(device.ID)
+	if currentStatus != nil && currentStatus.ValveCalibComplete {
+		log.Printf("Valve for device %s is already calibrated. Skipping.", device.ID)
+	} else {
+		log.Printf("Calibrating valve for device %s...", device.ID)
+		s.mqttClient.Publish(fmt.Sprintf("%s/cmd/valve/home", device.ID), "1")
+		if err := s.waitForFlag(device.ID, 5*time.Minute, func(status *models.SprinklerStatus) bool {
+			return status != nil && status.ValveCalibComplete
+		}); err != nil {
+			history.Status = "VALVE_CALIB_TIMEOUT"
+			history.Notes = "Valve calibration timed out."
+			s.db.Save(history)
+			return fmt.Errorf("valve calibration for device %s timed out: %w", device.ID, err)
 		}
-		return status.ValveCalibComplete
-	}); err != nil {
-		history.Status = "CALIB_TIMEOUT"
-		history.Notes = "Valve calibration timed out."
-		s.db.Save(history)
-		return fmt.Errorf("valve calibration for device %s timed out: %w", device.ID, err)
+		log.Printf("Valve calibration completed for device %s", device.ID)
 	}
 
-	log.Printf("Calibration completed for device %s.", device.ID)
+	log.Printf("Calibration phase completed for device %s", device.ID)
 	return nil
 }
 
@@ -190,7 +200,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 		// 2.1 Publish task payload and wait
 		topic := fmt.Sprintf("%s/cmd/task/set", device.ID)
 		log.Printf("Publishing task payload to %s", topic)
-		s.mqttClient.Publish(topic, taskDef.Payload)
+		s.mqttClient.Publish(topic, string(taskDef.Payload))
 
 		log.Printf("Waiting 3 seconds after publishing task...")
 		time.Sleep(3 * time.Second)

@@ -90,6 +90,11 @@ cp .env.example .env
     go run ./cmd/irrigation
     ```
 
+    **Run for debug
+    ```bash
+    go run ./cmd/debug/main.go
+    ```
+
 ## Configuration
 
 The application is configured using environment variables. Create a `.env` file in the project root or set these variables in your shell.

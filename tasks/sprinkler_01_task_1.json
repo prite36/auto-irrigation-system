@@ -1,4 +1,13 @@
 {
-  "payload": "[{\"fr\":50,\"to\":150,\"sp\":100,\"wv\":50,\"wvea\":\"PRE_START\",\"ct\":2}]",
-  "timeoutMinutes": 10
+  "payload": [
+    {
+      "fr": 50,
+      "to": 150,
+      "sp": 255,
+      "wv": 30,
+      "wvea": "PRE_START",
+      "ct": 2
+    }
+  ],
+  "timeoutMinutes": 1
 }
