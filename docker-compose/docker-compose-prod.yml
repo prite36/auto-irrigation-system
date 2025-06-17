@@ -1,0 +1,12 @@
+services:
+  auto-irrigation-system-prod:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: auto-irrigation-system-prod
+    container_name: auto-irrigation-system-prod
+    ports:
+      - "3100:8080"
+    restart: unless-stopped
+    env_file:
+      - ../.env.production

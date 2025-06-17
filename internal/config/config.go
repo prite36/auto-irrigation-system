@@ -45,32 +45,43 @@ type DeviceConfig struct {
 }
 
 type Config struct {
-	MQTT     MQTTConfig     `mapstructure:",squash"`
-	Database DatabaseConfig `mapstructure:",squash"`
-	Schedule ScheduleConfig `mapstructure:",squash"`
-	Slack    SlackConfig    `mapstructure:",squash"` // Added Slack configuration
-	Devices  []DeviceConfig `json:"devices"`
+	MQTT          MQTTConfig     `mapstructure:",squash"`
+	Database      DatabaseConfig `mapstructure:",squash"`
+	Schedule      ScheduleConfig `mapstructure:",squash"`
+	Slack         SlackConfig    `mapstructure:",squash"` // Added Slack configuration
+	Devices       []DeviceConfig `json:"devices"`
 	DeviceCfgPath string         `mapstructure:"DEVICE_CONFIG_PATH"`
 }
 
 // LoadConfig reads configuration from a .env file and environment variables,
 // and also loads a separate device configuration JSON file.
 func LoadConfig() (*Config, error) {
-	// Configure viper for .env file and environment variables
 	v := viper.New()
-	v.SetConfigFile(".env")
-	v.SetConfigType("env")
-	v.AutomaticEnv() // Read in environment variables that match
+	// Read from environment variables first. They will override values from the config file.
+	v.AutomaticEnv()
 
-	// If a config file is found, read it in.
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// Config file not found; ignore error if desired
-			log.Println("Warning: .env file not found, relying on environment variables.")
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = "local"
+	}
+
+	// Only load a .env file if in a local environment
+	if env == "local" {
+		log.Println("Local environment detected. Attempting to load .env.local file.")
+		v.SetConfigFile(".env.local")
+		v.SetConfigType("env")
+
+		if err := v.ReadInConfig(); err != nil {
+			// We only fail if the error is something other than the file not being found.
+			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+				return nil, fmt.Errorf("error reading config file .env.local: %w", err)
+			}
+			log.Println("Warning: .env.local not found. Relying on environment variables.")
 		} else {
-			// Config file was found but another error was produced
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+			log.Printf("Loaded configuration from %s", v.ConfigFileUsed())
 		}
+	} else {
+		log.Printf("APP_ENV is '%s'. Skipping .env file loading and relying solely on environment variables.", env)
 	}
 
 	var config Config

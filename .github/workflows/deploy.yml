@@ -1,0 +1,59 @@
+name: Build and Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - created
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Go dependencies
+        run: go get github.com/joho/godotenv
+
+      - name: Create .env file for production
+        run: |
+          {
+            echo "APP_ENV=production"
+
+            # MQTT Configuration
+            echo "MQTT_BROKER=${{ vars.MQTT_BROKER }}"
+            echo "MQTT_CLIENT_ID=${{ vars.MQTT_CLIENT_ID }}"
+            echo "MQTT_USERNAME=${{ secrets.MQTT_USERNAME }}"
+            echo "MQTT_PASSWORD=${{ secrets.MQTT_PASSWORD }}"
+
+            # Database Configuration
+            echo "DB_HOST=${{ vars.DB_HOST }}"
+            echo "DB_PORT=${{ vars.DB_PORT }}"
+            echo "DB_USER=${{ secrets.DB_USER }}"
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}"
+            echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "DB_SSLMODE=${{ vars.DB_SSLMODE }}"
+
+            # Schedule Configuration
+            echo "SCHEDULE_TIMES='${{ vars.SCHEDULE_TIMES }}'"
+            echo "SCHEDULE_DURATION=${{ vars.SCHEDULE_DURATION }}"
+
+            # Slack Configuration
+            echo "SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN }}"
+            echo "SLACK_CHANNEL_ID=${{ vars.SLACK_CHANNEL_ID }}"
+            echo "SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET }}"
+
+
+            echo "DEVICE_CONFIG_PATH=${{ vars.DEVICE_CONFIG_PATH }}" 
+
+          } > .env.production
+
+      - name: Build and deploy application
+        env:
+          APP_ENV: production
+        run: bash ./scripts/update-docker.sh
