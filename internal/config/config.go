@@ -11,83 +11,108 @@ import (
 )
 
 type MQTTConfig struct {
-	Broker   string `mapstructure:"MQTT_BROKER"`
-	ClientID string `mapstructure:"MQTT_CLIENT_ID"`
-	Username string `mapstructure:"MQTT_USERNAME"`
-	Password string `mapstructure:"MQTT_PASSWORD"`
+	Broker   string
+	ClientID string
+	Username string
+	Password string
 }
 
 type DatabaseConfig struct {
-	Host     string `mapstructure:"DB_HOST"`
-	Port     int    `mapstructure:"DB_PORT"`
-	User     string `mapstructure:"DB_USER"`
-	Password string `mapstructure:"DB_PASSWORD"`
-	DBName   string `mapstructure:"DB_NAME"`
-	SSLMode  string `mapstructure:"DB_SSLMODE"`
+	Host     string
+	Port     int
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
 }
 
 type ScheduleConfig struct {
-	Times    string `mapstructure:"SCHEDULE_TIMES"` // Comma-separated e.g., "07:00,17:00"
-	Duration int    `mapstructure:"SCHEDULE_DURATION"`
+	Times    string
+	Duration int
 }
 
-// SlackConfig holds the configuration for Slack notifications.
 type SlackConfig struct {
-	BotToken      string `mapstructure:"SLACK_BOT_TOKEN"`
-	ChannelID     string `mapstructure:"SLACK_CHANNEL_ID"`
-	SigningSecret string `mapstructure:"SLACK_SIGNING_SECRET"`
+	BotToken      string
+	ChannelID     string
+	SigningSecret string
 }
 
-// DeviceConfig defines a single sprinkler device and its associated task IDs.
 type DeviceConfig struct {
 	ID      string   `json:"id"`
 	TaskIDs []string `json:"taskIds"`
 }
 
 type Config struct {
-	MQTT          MQTTConfig     `mapstructure:",squash"`
-	Database      DatabaseConfig `mapstructure:",squash"`
-	Schedule      ScheduleConfig `mapstructure:",squash"`
-	Slack         SlackConfig    `mapstructure:",squash"` // Added Slack configuration
+	MQTT          MQTTConfig
+	Database      DatabaseConfig
+	Schedule      ScheduleConfig
+	Slack         SlackConfig
 	Devices       []DeviceConfig `json:"devices"`
-	DeviceCfgPath string         `mapstructure:"DEVICE_CONFIG_PATH"`
+	DeviceCfgPath string         `json:"devicecfgpath"`
 }
 
-// LoadConfig reads configuration from a .env file and environment variables,
-// and also loads a separate device configuration JSON file.
 func LoadConfig() (*Config, error) {
+	log.Println("--- Starting Configuration Loading ---")
 	v := viper.New()
-	// Read from environment variables first. They will override values from the config file.
-	v.AutomaticEnv()
+
+	v.BindEnv("database.host", "DB_HOST")
+	v.BindEnv("database.port", "DB_PORT")
+	v.BindEnv("database.user", "DB_USER")
+	v.BindEnv("database.password", "DB_PASSWORD")
+	v.BindEnv("database.dbname", "DB_NAME")
+	v.BindEnv("database.sslmode", "DB_SSLMODE")
+
+	v.BindEnv("mqtt.broker", "MQTT_BROKER")
+	v.BindEnv("mqtt.clientid", "MQTT_CLIENT_ID")
+	v.BindEnv("mqtt.username", "MQTT_USERNAME")
+	v.BindEnv("mqtt.password", "MQTT_PASSWORD")
+
+	v.BindEnv("schedule.times", "SCHEDULE_TIMES")
+	v.BindEnv("schedule.duration", "SCHEDULE_DURATION")
+
+	v.BindEnv("slack.bottoken", "SLACK_BOT_TOKEN")
+	v.BindEnv("slack.channelid", "SLACK_CHANNEL_ID")
+	v.BindEnv("slack.signingsecret", "SLACK_SIGNING_SECRET")
+
+	v.BindEnv("devicecfgpath", "DEVICE_CONFIG_PATH")
+
+	log.Println("[1] Explicit environment variable binding configured.")
 
 	env := os.Getenv("APP_ENV")
 	if env == "" {
+		log.Println("[2] APP_ENV not set, defaulting to 'local'.")
 		env = "local"
+	} else {
+		log.Printf("[2] APP_ENV is set to '%s'.", env)
 	}
 
-	// Only load a .env file if in a local environment
 	if env == "local" {
-		log.Println("Local environment detected. Attempting to load .env.local file.")
+		log.Println("[3] Attempting to load .env.local file...")
 		v.SetConfigFile(".env.local")
 		v.SetConfigType("env")
 
 		if err := v.ReadInConfig(); err != nil {
-			// We only fail if the error is something other than the file not being found.
 			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+				log.Printf("Error: Failed to read config file .env.local: %v", err)
 				return nil, fmt.Errorf("error reading config file .env.local: %w", err)
 			}
-			log.Println("Warning: .env.local not found. Relying on environment variables.")
+			log.Println("Info: .env.local not found, which is acceptable. Relying on environment variables.")
 		} else {
-			log.Printf("Loaded configuration from %s", v.ConfigFileUsed())
+			log.Printf("Success: Loaded configuration from %s", v.ConfigFileUsed())
 		}
 	} else {
-		log.Printf("APP_ENV is '%s'. Skipping .env file loading and relying solely on environment variables.", env)
+		log.Printf("[3] Skipping .env file loading because APP_ENV is '%s'.", env)
 	}
 
+	log.Println("[4] Dumping all settings found by Viper (sensitive info redacted):")
+
 	var config Config
+	log.Println("[5] Unmarshaling settings into Config struct...")
 	if err := v.Unmarshal(&config); err != nil {
-		return nil, fmt.Errorf("unable to decode config into struct, %v", err)
+		log.Printf("Error: Failed to unmarshal config: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	log.Println("[6] Final configuration struct (sensitive info redacted):")
 
 	// Load device configurations from the specified JSON file
 	if config.DeviceCfgPath != "" {
