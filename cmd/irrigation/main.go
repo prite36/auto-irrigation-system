@@ -64,7 +64,7 @@ func main() {
 	// Subscribe to topics for all configured devices
 	log.Println("Subscribing to topics for configured devices...")
 	for _, device := range cfg.Devices {
-		mqttClient.SubscribeToDeviceTopics(device.ID)
+		mqttClient.SubscribeToDeviceTopics(device)
 	}
 
 	// Initialize Slack Client

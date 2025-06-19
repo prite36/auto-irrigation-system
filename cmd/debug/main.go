@@ -58,19 +58,19 @@ func main() {
 	// Subscribe to topics for all configured devices
 	log.Println("Subscribing to topics for configured devices...")
 	for _, device := range cfg.Devices {
-		mqttClient.SubscribeToDeviceTopics(device.ID)
+		mqttClient.SubscribeToDeviceTopics(device)
 	}
 
-		// Initialize Slack Client
+	// Initialize Slack Client
 	slackClient := slack.NewClient(cfg.Slack.BotToken, cfg.Slack.ChannelID)
 
 	// Initialize Scheduler
 	scheduler := scheduler.NewScheduler(cfg, mqttClient, db, slackClient)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 	// Run the job directly
 	log.Println("Executing RunJob directly...")
-	scheduler.RunJob()
+	scheduler.RunAllJobsOnce()
 
 	log.Println("Debug run finished.")
 }

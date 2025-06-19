@@ -26,10 +26,7 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
-type ScheduleConfig struct {
-	Times    string
-	Duration int
-}
+type ScheduleConfig struct{}
 
 type SlackConfig struct {
 	BotToken      string
@@ -38,8 +35,11 @@ type SlackConfig struct {
 }
 
 type DeviceConfig struct {
-	ID      string   `json:"id"`
-	TaskIDs []string `json:"taskIds"`
+	ID               string   `json:"id"`
+	Type             string   `json:"type"`
+	ScheduleTimes    []string `json:"scheduleTimes"`
+	ScheduleDuration int      `json:"scheduleDuration"`
+	TaskIDs          []string `json:"taskIds"`
 }
 
 type Config struct {
@@ -66,9 +66,6 @@ func LoadConfig() (*Config, error) {
 	v.BindEnv("mqtt.clientid", "MQTT_CLIENT_ID")
 	v.BindEnv("mqtt.username", "MQTT_USERNAME")
 	v.BindEnv("mqtt.password", "MQTT_PASSWORD")
-
-	v.BindEnv("schedule.times", "SCHEDULE_TIMES")
-	v.BindEnv("schedule.duration", "SCHEDULE_DURATION")
 
 	v.BindEnv("slack.bottoken", "SLACK_BOT_TOKEN")
 	v.BindEnv("slack.channelid", "SLACK_CHANNEL_ID")
@@ -99,6 +96,40 @@ func LoadConfig() (*Config, error) {
 			log.Println("Info: .env.local not found, which is acceptable. Relying on environment variables.")
 		} else {
 			log.Printf("Success: Loaded configuration from %s", v.ConfigFileUsed())
+			// Explicitly set all known config values from .env.local to ensure correct unmarshalling
+			configMappings := map[string]string{
+				"database.host":     "DB_HOST",
+				"database.port":     "DB_PORT",
+				"database.user":     "DB_USER",
+				"database.password": "DB_PASSWORD",
+				"database.dbname":   "DB_NAME",
+				"database.sslmode":  "DB_SSLMODE",
+
+				"mqtt.broker":   "MQTT_BROKER",
+				"mqtt.clientid": "MQTT_CLIENT_ID",
+				"mqtt.username": "MQTT_USERNAME",
+				"mqtt.password": "MQTT_PASSWORD",
+
+				"slack.bottoken":      "SLACK_BOT_TOKEN",
+				"slack.channelid":     "SLACK_CHANNEL_ID",
+				"slack.signingsecret": "SLACK_SIGNING_SECRET",
+
+				"devicecfgpath": "DEVICE_CONFIG_PATH",
+			}
+
+			for internalKey, envFileKey := range configMappings {
+				if val := v.Get(envFileKey); val != nil {
+					if s, ok := val.(string); ok && s != "" {
+						v.Set(internalKey, s)
+						log.Printf("[DEBUG] Manually set Viper key '%s' to string value '%s' (from .env key '%s')", internalKey, s, envFileKey)
+					} else if !ok { // val is not nil here (due to outer if) and not a string
+						// If it's not a string but has a value (e.g. int if Viper auto-converted from .env, or other types)
+						v.Set(internalKey, val)
+						log.Printf("[DEBUG] Manually set Viper key '%s' to non-string value '%v' (type %T) (from .env key '%s')", internalKey, val, val, envFileKey)
+					}
+					// If val was a string but empty, it's skipped, allowing default Go zero values during Unmarshal if that's desired.
+				}
+			}
 		}
 	} else {
 		log.Printf("[3] Skipping .env file loading because APP_ENV is '%s'.", env)

@@ -7,7 +7,7 @@ services:
     container_name: auto-irrigation-system-local
     ports:
       - "3100:8080"
-      - "3005:3005"
+      - "3101:3005"
     restart: unless-stopped
     env_file:
       - ../.env.docker.local

@@ -93,12 +93,12 @@ cp .env.example .env
 4.  **Run the Application:**
     The main application now runs both the background scheduler and the API server in a single process.
     ```bash
-    go run ./cmd/irrigation
+    APP_ENV=local go run ./cmd/irrigation
     ```
 
     **Run for debug
     ```bash
-    go run ./cmd/debug/main.go
+    APP_ENV=local go run ./cmd/debug/main.go
     ```
 
 ## Configuration

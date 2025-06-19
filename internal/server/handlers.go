@@ -80,7 +80,7 @@ func TriggerJobHandler(sched *scheduler.Scheduler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("[INFO] Received API request to trigger irrigation job manually.")
 		// Run in a goroutine so we can respond to the client immediately
-		go sched.RunJob()
+		go sched.RunAllJobsOnce()
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintln(w, "Irrigation job trigger request accepted.")
 	}

@@ -35,7 +35,12 @@ type Scheduler struct {
 
 // NewScheduler creates a new scheduler instance.
 func NewScheduler(cfg *config.Config, mqttClient *mqtt.Client, db *gorm.DB, slackClient *slack.Client) *Scheduler {
-	s := gocron.NewScheduler(time.UTC)
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		log.Fatalf("Failed to load location: %v", err)
+	}
+
+	s := gocron.NewScheduler(loc)
 	return &Scheduler{
 		scheduler:   s,
 		cfg:         cfg,
@@ -47,18 +52,28 @@ func NewScheduler(cfg *config.Config, mqttClient *mqtt.Client, db *gorm.DB, slac
 
 // Start begins the scheduler's job execution.
 func (s *Scheduler) Start() {
-	times := strings.Split(s.cfg.Schedule.Times, ",")
-	for _, scheduleTime := range times {
-		trimmedTime := strings.TrimSpace(scheduleTime)
-		if trimmedTime == "" {
-			continue
-		}
-		log.Printf("Scheduling job at %s", trimmedTime)
-		_, err := s.scheduler.Every(1).Day().At(trimmedTime).Do(s.RunJob)
-		if err != nil {
-			log.Fatalf("Failed to schedule job at %s: %v", trimmedTime, err)
+	log.Println("Scheduling jobs based on device configurations...")
+
+	for _, device := range s.cfg.Devices {
+		for _, scheduleTime := range device.ScheduleTimes {
+			trimmedTime := strings.TrimSpace(scheduleTime)
+			if trimmedTime == "" {
+				continue
+			}
+
+			// Capture device for the closure
+			deviceToSchedule := device
+
+			log.Printf("Scheduling job for device '%s' at %s", deviceToSchedule.ID, trimmedTime)
+			_, err := s.scheduler.Every(1).Day().At(trimmedTime).Do(func() {
+				s.runDeviceJob(deviceToSchedule)
+			})
+			if err != nil {
+				log.Fatalf("Failed to schedule job for device '%s' at %s: %v", deviceToSchedule.ID, trimmedTime, err)
+			}
 		}
 	}
+
 	s.scheduler.StartAsync()
 }
 
@@ -68,27 +83,71 @@ func (s *Scheduler) Stop() {
 	s.scheduler.Stop()
 }
 
-// RunJob is the main function executed by the scheduler.
-// It can also be called directly for debugging purposes.
-func (s *Scheduler) RunJob() {
-	log.Println("Starting scheduled irrigation run...")
-	s.notifySlackRich(slack.NewInfoMessage("🚀 Job Started", "Scheduled irrigation run has commenced."))
+// RunAllJobsOnce is a debug function to run all device jobs immediately.
+func (s *Scheduler) RunAllJobsOnce() {
+	log.Println("Starting manual run for all devices...")
+	s.notifySlackRich(slack.NewInfoMessage("🚀 Manual Run Started", "Manual run for all devices has commenced."))
 
 	for _, device := range s.cfg.Devices {
-		if err := s.processDevice(device); err != nil {
-			log.Printf("Error processing device %s: %v. Halting further processing in this run.", device.ID, err)
-			s.notifySlackRich(slack.NewErrorMessage("🚨 ERROR: Device Processing", fmt.Sprintf("Error processing device %s: %v", device.ID, err)))
-			break
-		}
+		s.runDeviceJob(device)
 	}
 
-	log.Printf("Scheduled irrigation run finished.")
-	s.notifySlackRich(slack.NewSuccessMessage("✅ Job Completed", "Finished processing all devices for the scheduled run."))
+	log.Println("Manual run for all devices finished.")
+	s.notifySlackRich(slack.NewSuccessMessage("✅ Manual Run Completed", "Finished processing all devices for the manual run."))
 }
 
-// processDevice handles the full workflow for a single device.
-func (s *Scheduler) processDevice(device config.DeviceConfig) error {
-	log.Printf("Processing device: %s", device.ID)
+// runDeviceJob selects the appropriate processor for a given device and executes it.
+func (s *Scheduler) runDeviceJob(device config.DeviceConfig) {
+	log.Printf("Starting job for device %s of type %s", device.ID, device.Type)
+	var err error
+	switch device.Type {
+	case "iot_sprinkler":
+		err = s.processSprinklerDevice(device)
+	case "iot_plant_pot":
+		err = s.processPlantPotDevice(device)
+	default:
+		log.Printf("Warning: Unknown device type '%s' for device '%s'. Skipping.", device.Type, device.ID)
+	}
+
+	if err != nil {
+		log.Printf("Error processing device %s: %v.", device.ID, err)
+		s.notifySlackRich(slack.NewErrorMessage(fmt.Sprintf("🚨 ERROR: Device %s", device.ID), fmt.Sprintf("Error processing device: %v", err)))
+	}
+}
+
+// processPlantPotDevice handles the logic for a single iot_plant_pot device.
+func (s *Scheduler) processPlantPotDevice(device config.DeviceConfig) error {
+	log.Printf("Processing plant pot device: %s", device.ID)
+	s.notifySlackRich(slack.NewInfoMessage(fmt.Sprintf("🪴 Plant Pot Job Started: %s", device.ID), "Starting health check and watering process."))
+
+	// 1. Check health_check
+	status := s.mqttClient.GetDeviceStatus(device.ID)
+	if !status.HealthCheck {
+		errMsg := fmt.Sprintf("Health check failed for plant pot %s. Aborting job for this device.", device.ID)
+		log.Println(errMsg)
+		s.notifySlackRich(slack.NewErrorMessage(fmt.Sprintf("🚨 ERROR: Plant Pot %s", device.ID), errMsg))
+		return fmt.Errorf("%s", errMsg)
+	}
+
+	log.Printf("Health check passed for %s.", device.ID)
+
+	// 2. Publish trigger command
+	topic := fmt.Sprintf("%s/cmd/trigger_solenoid_valve", device.ID)
+	payload := fmt.Sprintf("%d", device.ScheduleDuration)
+	log.Printf("Publishing to %s with payload '%s' for %d seconds", topic, payload, device.ScheduleDuration)
+	s.mqttClient.Publish(topic, payload)
+
+	// 3. Send success notification
+	successMsg := fmt.Sprintf("Successfully triggered solenoid valve for plant pot %s.", device.ID)
+	log.Println(successMsg)
+	s.notifySlackRich(slack.NewSuccessMessage(fmt.Sprintf("✅ Plant Pot Job Completed: %s", device.ID), successMsg))
+
+	return nil
+}
+
+// processSprinklerDevice handles the full workflow for a single sprinkler device.
+func (s *Scheduler) processSprinklerDevice(device config.DeviceConfig) error {
+	log.Printf("Processing sprinkler device: %s", device.ID)
 	now := time.Now()
 	history := &models.IrrigationHistory{
 		ScheduledAt: now,
@@ -131,7 +190,7 @@ func (s *Scheduler) runCalibration(device config.DeviceConfig, history *models.I
 	} else {
 		log.Printf("Calibrating sprinkler for device %s...", device.ID)
 		s.mqttClient.Publish(fmt.Sprintf("%s/cmd/sprinkler/home", device.ID), "1")
-		if err := s.waitForFlag(device.ID, 5*time.Minute, func(status *models.SprinklerStatus) bool {
+		if err := s.waitForFlag(device.ID, 2*time.Minute, func(status *models.DeviceStatus) bool {
 			return status != nil && status.SprinklerCalibComplete
 		}); err != nil {
 			history.Status = "SPRINKLER_CALIB_TIMEOUT"
@@ -153,14 +212,14 @@ func (s *Scheduler) runCalibration(device config.DeviceConfig, history *models.I
 	} else {
 		log.Printf("Calibrating valve for device %s...", device.ID)
 		s.mqttClient.Publish(fmt.Sprintf("%s/cmd/valve/home", device.ID), "1")
-		if err := s.waitForFlag(device.ID, 5*time.Minute, func(status *models.SprinklerStatus) bool {
+		if err := s.waitForFlag(device.ID, 2*time.Minute, func(status *models.DeviceStatus) bool {
 			return status != nil && status.ValveCalibComplete
 		}); err != nil {
 			history.Status = "VALVE_CALIB_TIMEOUT"
 			history.Notes = "Valve calibration timed out."
 			s.db.Save(history)
 			errMsg := fmt.Sprintf("Timeout waiting for valve calibration on device %s", device.ID)
-			log.Printf(errMsg)
+			log.Println(errMsg)
 			s.notifySlackRich(slack.NewErrorMessage("🚨 Calibration Timeout", errMsg))
 			return fmt.Errorf("valve calibration for device %s timed out: %w", device.ID, err)
 		}
@@ -214,7 +273,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 		// 2.2 Wait for task completion with timeout
 		log.Printf("Waiting for task completion flag with timeout: %d minutes", taskDef.TimeoutMinutes)
 		timeout := time.Duration(taskDef.TimeoutMinutes) * time.Minute
-		if err := s.waitForFlag(device.ID, timeout, func(status *models.SprinklerStatus) bool {
+		if err := s.waitForFlag(device.ID, timeout, func(status *models.DeviceStatus) bool {
 			if status == nil {
 				return false
 			}
@@ -224,7 +283,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 			history.Notes = fmt.Sprintf("Task '%s' for device '%s' timed out after %d minutes.", taskID, device.ID, taskDef.TimeoutMinutes)
 			s.db.Save(history)
 			errMsg := fmt.Sprintf("Device %s, Task %s: Timeout waiting for completion", device.ID, taskID)
-			log.Printf(errMsg)
+			log.Println(errMsg)
 			s.notifySlackRich(slack.NewErrorMessage("🚨 Task Timeout", errMsg))
 			return fmt.Errorf("task '%s' for device '%s' timed out: %w", taskID, device.ID, err)
 		}
@@ -237,7 +296,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 }
 
 // waitForFlag is a helper function to poll for a status change with a timeout.
-func (s *Scheduler) waitForFlag(deviceID string, timeout time.Duration, checkFunc func(status *models.SprinklerStatus) bool) error {
+func (s *Scheduler) waitForFlag(deviceID string, timeout time.Duration, checkFunc func(status *models.DeviceStatus) bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

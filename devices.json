@@ -1,11 +1,14 @@
 {
   "devices": [
     {
-      "id": "sprinkler_01",
-      "taskIds": [
-        "task_1",
-        "task_2"
-      ]
+      "id": "plant_pot_01",
+      "type": "iot_plant_pot",
+      "scheduleTimes": [
+        "07:00",
+        "17:53"
+      ],
+      "scheduleDuration": 3,
+      "taskIds": []
     }
   ]
 }

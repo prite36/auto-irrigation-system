@@ -29,15 +29,16 @@ func (IrrigationHistory) TableName() string {
 	return "irrigation_history"
 }
 
-// SprinklerStatus holds the most recent status from a sprinkler device.
+// DeviceStatus holds the most recent status from a device.
 // This data is updated via MQTT messages.
-type SprinklerStatus struct {
+type DeviceStatus struct {
 	DeviceID                  string  `json:"deviceId"`
+	HealthCheck               bool    `json:"healthCheck"`
 	SprinklerPosition         float64 `json:"sprinklerPosition"`
 	ValvePosition             float64 `json:"valvePosition"`
 	SprinklerCalibComplete    bool    `json:"sprinklerCalibComplete"`
 	ValveCalibComplete        bool    `json:"valveCalibComplete"`
-	ValveIsAtTarget           bool    `json:"valveIsAtTarget"`
+		ValveIsAtTarget           bool    `json:"valveIsAtTarget"`
 	TaskCurrentIndex          int     `json:"taskCurrentIndex"`
 	TaskCurrentCount          int     `json:"taskCurrentCount"`
 	TaskAllComplete           bool    `json:"taskAllComplete"`

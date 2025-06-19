@@ -9,14 +9,15 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/prite36/auto-irrigation-system/internal/config"
 	"github.com/prite36/auto-irrigation-system/internal/models"
 )
 
 // Client manages the MQTT connection and subscriptions.
 type Client struct {
 	client            mqtt.Client
-	deviceStatuses    sync.Map // Maps deviceID (string) to *models.SprinklerStatus
-	subscribedDevices sync.Map // To track which devices we are subscribed to
+	deviceStatuses    sync.Map // Maps deviceID (string) to *models.DeviceStatus
+	subscribedDevices sync.Map // To track which devices we are subscribed to (key: deviceID, value: config.DeviceConfig)
 }
 
 // NewClient creates and configures a new MQTT client.
@@ -49,9 +50,9 @@ func (c *Client) onConnectHandler(client mqtt.Client) {
 	log.Println("Connected to MQTT broker.")
 	// Re-subscribe to topics for all previously subscribed devices
 	c.subscribedDevices.Range(func(key, value interface{}) bool {
-		deviceID := key.(string)
-		log.Printf("Re-subscribing to topics for device: %s", deviceID)
-		c.SubscribeToDeviceTopics(deviceID)
+		device := value.(config.DeviceConfig)
+		log.Printf("Re-subscribing to topics for device: %s", device.ID)
+		c.SubscribeToDeviceTopics(device)
 		return true
 	})
 }
@@ -74,11 +75,13 @@ func (c *Client) messageHandler(client mqtt.Client, msg mqtt.Message) {
 	payloadStr := string(msg.Payload())
 
 	// Get or create the status object for the device. IMPORTANT: Store POINTERS in the map.
-	value, _ := c.deviceStatuses.LoadOrStore(deviceID, &models.SprinklerStatus{DeviceID: deviceID})
-	status := value.(*models.SprinklerStatus)
+	value, _ := c.deviceStatuses.LoadOrStore(deviceID, &models.DeviceStatus{DeviceID: deviceID})
+	status := value.(*models.DeviceStatus)
 
 	var err error
 	switch {
+	case strings.HasSuffix(msg.Topic(), "/status/health_check"):
+		status.HealthCheck, err = strconv.ParseBool(payloadStr)
 	case strings.HasSuffix(msg.Topic(), "/status/sprinkler/position"):
 		status.SprinklerPosition, err = strconv.ParseFloat(payloadStr, 64)
 	case strings.HasSuffix(msg.Topic(), "/status/valve/position"):
@@ -124,20 +127,32 @@ func (c *Client) Close() {
 }
 
 // SubscribeToDeviceTopics subscribes to all relevant status topics for a given device.
-func (c *Client) SubscribeToDeviceTopics(deviceID string) {
+func (c *Client) SubscribeToDeviceTopics(device config.DeviceConfig) {
 	// Mark this device as one we want to be subscribed to, for reconnections.
-	c.subscribedDevices.Store(deviceID, true)
+	c.subscribedDevices.Store(device.ID, device)
 
-	topics := map[string]byte{
-		fmt.Sprintf("%s/status/sprinkler/position", deviceID):       0,
-		fmt.Sprintf("%s/status/valve/position", deviceID):           0,
-		fmt.Sprintf("%s/status/sprinkler/calib_complete", deviceID): 0,
-		fmt.Sprintf("%s/status/valve/calib_complete", deviceID):     0,
-		fmt.Sprintf("%s/status/valve/target", deviceID):             0,
-		fmt.Sprintf("%s/status/task/current_index", deviceID):       0,
-		fmt.Sprintf("%s/status/task/current_count", deviceID):       0,
-		fmt.Sprintf("%s/status/task/all_complete", deviceID):        0,
-		fmt.Sprintf("%s/status/task/array", deviceID):               0,
+	var topics map[string]byte
+
+	switch device.Type {
+	case "iot_sprinkler":
+		topics = map[string]byte{
+			fmt.Sprintf("%s/status/sprinkler/position", device.ID):       0,
+			fmt.Sprintf("%s/status/valve/position", device.ID):           0,
+			fmt.Sprintf("%s/status/sprinkler/calib_complete", device.ID): 0,
+			fmt.Sprintf("%s/status/valve/calib_complete", device.ID):     0,
+			fmt.Sprintf("%s/status/valve/target", device.ID):             0,
+			fmt.Sprintf("%s/status/task/current_index", device.ID):       0,
+			fmt.Sprintf("%s/status/task/current_count", device.ID):       0,
+			fmt.Sprintf("%s/status/task/all_complete", device.ID):        0,
+			fmt.Sprintf("%s/status/task/array", device.ID):               0,
+		}
+	case "iot_plant_pot":
+		topics = map[string]byte{
+			fmt.Sprintf("%s/status/health_check", device.ID): 0,
+		}
+	default:
+		log.Printf("Warning: Unknown device type '%s' for device '%s'. No topics will be subscribed.", device.Type, device.ID)
+		return
 	}
 
 	for topic := range topics {
@@ -150,16 +165,16 @@ func (c *Client) SubscribeToDeviceTopics(deviceID string) {
 }
 
 // GetDeviceStatus safely retrieves the status for a given device ID.
-func (c *Client) GetDeviceStatus(deviceID string) *models.SprinklerStatus {
+func (c *Client) GetDeviceStatus(deviceID string) *models.DeviceStatus {
 	value, ok := c.deviceStatuses.Load(deviceID)
 	if !ok {
-		return nil // No status found for this device yet
+		return &models.DeviceStatus{DeviceID: deviceID} // Return a new empty status to avoid nil pointers
 	}
-	return value.(*models.SprinklerStatus)
+	return value.(*models.DeviceStatus)
 }
 
 // ResetDeviceStatus resets the status for a device, typically before a new operation.
 func (c *Client) ResetDeviceStatus(deviceID string) {
 	log.Printf("Resetting status for device %s", deviceID)
-	c.deviceStatuses.Store(deviceID, &models.SprinklerStatus{DeviceID: deviceID})
+	c.deviceStatuses.Store(deviceID, &models.DeviceStatus{DeviceID: deviceID})
 }
