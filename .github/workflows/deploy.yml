@@ -26,6 +26,18 @@ jobs:
       - name: Install Go dependencies
         run: go get github.com/joho/godotenv
 
+      - name: Diagnose Docker Permissions
+        run: |
+          echo "Running as user: $(whoami)"
+          echo "User ID and groups: $(id)"
+          echo "DOCKER_CONFIG is: $DOCKER_CONFIG"
+          ls -ld /home/p100 || echo "Could not ls -ld /home/p100"
+          ls -ld /home/p100/.docker || echo "/home/p100/.docker does not exist or cannot be accessed by ls"
+          ls -ld /home/p100/.docker/buildx || echo "/home/p100/.docker/buildx does not exist or cannot be accessed by ls"
+          echo "Attempting docker info:"
+          docker info
+        continue-on-error: true # Allow workflow to continue to the problematic step
+
       - name: Create .env file for production
         run: |
           {
