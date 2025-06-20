@@ -8,7 +8,34 @@ services:
     ports:
       - "3100:8080"
       - "3005:3005"
+    networks:
+      - auto-irrigation-system-network-prod
+      - mosquitto-mqtt-broker_network
     restart: unless-stopped
     env_file:
       - ../.env.production
+  auto-irrigation-system-postgresql:
+    image: postgres
+    container_name: 'auto-irrigation-system-postgresql'
+    ports:
+      - '15430:5432'
+    networks:
+      - auto-irrigation-system-network-prod
+    restart: 'always'
+    volumes:
+      - auto-irrigation-system-data-prod:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
 
+networks:
+  auto-irrigation-system-network-prod:
+    name: auto-irrigation-system-network-prod
+  mosquitto-mqtt-broker_network:
+    name: simple-mqtt-broker_default
+    external: true
+
+volumes:
+  auto-irrigation-system-data-prod:
+  

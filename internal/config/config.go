@@ -57,10 +57,11 @@ func LoadConfig() (*Config, error) {
 
 	v.BindEnv("database.host", "DB_HOST")
 	v.BindEnv("database.port", "DB_PORT")
-	v.BindEnv("database.user", "DB_USER")
-	v.BindEnv("database.password", "DB_PASSWORD")
-	v.BindEnv("database.dbname", "DB_NAME")
 	v.BindEnv("database.sslmode", "DB_SSLMODE")
+
+	v.BindEnv("database.user", "POSTGRES_USER")
+	v.BindEnv("database.password", "POSTGRES_PASSWORD")
+	v.BindEnv("database.dbname", "POSTGRES_DB")
 
 	v.BindEnv("mqtt.broker", "MQTT_BROKER")
 	v.BindEnv("mqtt.clientid", "MQTT_CLIENT_ID")
@@ -98,12 +99,13 @@ func LoadConfig() (*Config, error) {
 			log.Printf("Success: Loaded configuration from %s", v.ConfigFileUsed())
 			// Explicitly set all known config values from .env.local to ensure correct unmarshalling
 			configMappings := map[string]string{
-				"database.host":     "DB_HOST",
-				"database.port":     "DB_PORT",
-				"database.user":     "DB_USER",
-				"database.password": "DB_PASSWORD",
-				"database.dbname":   "DB_NAME",
-				"database.sslmode":  "DB_SSLMODE",
+				"database.host":    "DB_HOST",
+				"database.port":    "DB_PORT",
+				"database.sslmode": "DB_SSLMODE",
+
+				"database.user":     "POSTGRES_USER",
+				"database.password": "POSTGRES_PASSWORD",
+				"database.dbname":   "POSTGRES_DB",
 
 				"mqtt.broker":   "MQTT_BROKER",
 				"mqtt.clientid": "MQTT_CLIENT_ID",

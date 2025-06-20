@@ -3,7 +3,7 @@ name: Build and Deploy Production
 on:
   push:
     branches:
-      - main
+      - feature/vibe-code
   release:
     types:
       - created
@@ -12,6 +12,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: self-hosted
+    environment: production
     
     steps:
       - name: Checkout repository
@@ -34,15 +35,16 @@ jobs:
             # Database Configuration
             echo "DB_HOST=${{ vars.DB_HOST }}"
             echo "DB_PORT=${{ vars.DB_PORT }}"
-            echo "DB_USER=${{ secrets.DB_USER }}"
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}"
-            echo "DB_NAME=${{ vars.DB_NAME }}"
             echo "DB_SSLMODE=${{ vars.DB_SSLMODE }}"
+
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}"
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
+            echo "POSTGRES_DB=${{ vars.POSTGRES_DB }}"
 
             # Slack Configuration
             echo "SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN }}"
-            echo "SLACK_CHANNEL_ID=${{ vars.SLACK_CHANNEL_ID }}"
             echo "SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET }}"
+            echo "SLACK_CHANNEL_ID=${{ vars.SLACK_CHANNEL_ID }}"
 
 
             echo "DEVICE_CONFIG_PATH=${{ vars.DEVICE_CONFIG_PATH }}" 
