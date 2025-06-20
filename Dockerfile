@@ -30,6 +30,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -o /app/main ./cmd/irrigatio
 # Start from a minimal base image for a small footprint.
 FROM alpine:latest AS production
 
+# Install timezone data and set the timezone
+RUN apk add --no-cache tzdata
+ENV TZ Asia/Bangkok
+
 # Set the working directory.
 WORKDIR /app
 
