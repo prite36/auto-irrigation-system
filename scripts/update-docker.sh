@@ -14,4 +14,4 @@ else
     exit 1
 fi
 
-docker compose -f $SCRIPT_DIR/../docker-compose/${DOCKER_COMPOSE_FILE} -p auto-irrigation-system up -d --build
+docker compose --env-file $SCRIPT_DIR/../.env.$APP_ENV -f $SCRIPT_DIR/../docker-compose/${DOCKER_COMPOSE_FILE} -p auto-irrigation-system up -d --build
