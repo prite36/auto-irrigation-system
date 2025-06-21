@@ -1,0 +1,21 @@
+{
+  "payload": [
+    {
+      "fr": 90,
+      "to": 98,
+      "sp": 90,
+      "wv": 25,
+      "wvea": "PRE_START",
+      "ct": 5
+    },
+    {
+      "fr": 90,
+      "to": 98,
+      "sp": 90,
+      "wv": 28,
+      "wvea": "PRE_START",
+      "ct": 10
+    }
+  ],
+  "timeoutMinutes": 2
+}
