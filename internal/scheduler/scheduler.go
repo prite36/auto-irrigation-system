@@ -174,6 +174,11 @@ func (s *Scheduler) processSprinklerDevice(device config.DeviceConfig) error {
 	history.Notes = "All tasks completed successfully."
 	s.db.Save(history)
 	log.Printf("Successfully completed all tasks for device %s", device.ID)
+
+	// Send success notification
+	successMsg := fmt.Sprintf("Successfully completed all tasks for device %s.", device.ID)
+	s.notifySlackRich(slack.NewSuccessMessage(fmt.Sprintf("✅ Sprinkler Job Completed: %s", device.ID), successMsg))
+
 	return nil
 }
 
