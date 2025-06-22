@@ -5,7 +5,7 @@
       "type": "iot_sprinkler",
       "scheduleTimes": [
         "08:01",
-        "17:12"
+        "17:25"
       ],
       "scheduleDuration": 20,
       "taskIds": [

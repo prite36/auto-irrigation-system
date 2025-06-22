@@ -43,6 +43,9 @@ COPY --from=builder /app/main .
 # Copy the devices configuration file.
 COPY devices.json .
 
+# Copy the tasks directory.
+COPY tasks ./tasks
+
 # Expose port 8080 for the application.
 # You can change this to match your application's port.
 EXPOSE 8080
