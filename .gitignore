@@ -1,0 +1,27 @@
+# Environment variables
+# Environment file
+.env*
+
+# Binaries
+bin/
+
+# Database
+*.db
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Vendor directory
+vendor/

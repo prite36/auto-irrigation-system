@@ -1,0 +1,20 @@
+services:
+  auto-irrigation-system-local:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: auto-irrigation-system-local
+    container_name: auto-irrigation-system-local
+    ports:
+      - "3100:8080"
+      - "3101:3005"
+    restart: unless-stopped
+    env_file:
+      - ../.env.docker.local
+    networks:
+      - db-local
+
+networks:
+  db-local:
+    name: auto-irrigation-db_auto-irrigation-system-db-local
+    external: true
