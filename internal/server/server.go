@@ -28,8 +28,8 @@ func New(cfg *config.Config, sched *scheduler.Scheduler) *http.Server {
 	// Slack events endpoint
 	mux.HandleFunc("/slack/events", SlackEventsHandler(cfg))
 
-	// API endpoint to trigger a job manually
-	mux.HandleFunc("/api/v1/irrigate/now", TriggerJobHandler(sched))
+	// API endpoint to trigger a task
+	mux.HandleFunc("/api/v1/trigger-task", TriggerTaskHandler(sched))
 
 	// API endpoint to get application status
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

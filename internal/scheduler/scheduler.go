@@ -83,6 +83,25 @@ func (s *Scheduler) Stop() {
 	s.scheduler.Stop()
 }
 
+// RunJobForDevice runs the job for a specific device ID.
+func (s *Scheduler) RunJobForDevice(deviceID string) error {
+	log.Printf("Starting manual run for device: %s...", deviceID)
+	s.notifySlackRich(slack.NewInfoMessage(fmt.Sprintf("🚀 Manual Run Started for %s", deviceID), fmt.Sprintf("Manual run for device %s has commenced.", deviceID)))
+
+	for _, device := range s.cfg.Devices {
+		if device.ID == deviceID {
+			s.runDeviceJob(device)
+			log.Printf("Manual run for device %s finished.", deviceID)
+			s.notifySlackRich(slack.NewSuccessMessage(fmt.Sprintf("✅ Manual Run Completed for %s", deviceID), fmt.Sprintf("Finished processing device %s for the manual run.", deviceID)))
+			return nil
+		}
+	}
+
+	log.Printf("Manual run for device %s failed: device not found.", deviceID)
+	s.notifySlackRich(slack.NewErrorMessage(fmt.Sprintf("🚨 Manual Run Failed for %s", deviceID), fmt.Sprintf("Device with ID '%s' not found.", deviceID)))
+	return fmt.Errorf("device with ID '%s' not found", deviceID)
+}
+
 // RunAllJobsOnce is a debug function to run all device jobs immediately.
 func (s *Scheduler) RunAllJobsOnce() {
 	log.Println("Starting manual run for all devices...")
@@ -173,7 +192,7 @@ func (s *Scheduler) processSprinklerDevice(device config.DeviceConfig) error {
 	history.EndedAt = &endedAt
 	history.Notes = "All tasks completed successfully."
 	s.db.Save(history)
-	log.Printf("Successfully completed all tasks for device %s", device.ID)
+	log.Printf("Successfully completed all tasks")
 
 	// Send success notification
 	successMsg := fmt.Sprintf("Successfully completed all tasks for device %s.", device.ID)
@@ -202,33 +221,33 @@ func (s *Scheduler) runCalibration(device config.DeviceConfig, history *models.I
 			history.Notes = "Sprinkler calibration timed out."
 			s.db.Save(history)
 			errMsg := fmt.Sprintf("Timeout waiting for sprinkler calibration on device %s", device.ID)
-			log.Printf(errMsg)
+			log.Println(errMsg)
 			s.notifySlackRich(slack.NewErrorMessage("🚨 Calibration Timeout", errMsg))
-			return fmt.Errorf("sprinkler calibration for device %s timed out: %w", device.ID, err)
+			return fmt.Errorf("sprinkler calibration timed out: %w", err)
 		}
 		log.Printf("Sprinkler calibration completed for device %s", device.ID)
 	}
 
-	// --- Calibrate Valve ---
+	// --- Calibrate Water Valve ---
 	// Re-fetch status in case it was updated during sprinkler calibration
 	currentStatus = s.mqttClient.GetDeviceStatus(device.ID)
 	if currentStatus != nil && currentStatus.ValveCalibComplete {
-		log.Printf("Valve for device %s is already calibrated. Skipping.", device.ID)
+		log.Printf("Water valve for device %s is already calibrated. Skipping.", device.ID)
 	} else {
-		log.Printf("Calibrating valve for device %s...", device.ID)
+		log.Printf("Calibrating water valve for device %s...", device.ID)
 		s.mqttClient.Publish(fmt.Sprintf("%s/cmd/valve/home", device.ID), "1")
 		if err := s.waitForFlag(device.ID, 2*time.Minute, func(status *models.DeviceStatus) bool {
 			return status != nil && status.ValveCalibComplete
 		}); err != nil {
 			history.Status = "VALVE_CALIB_TIMEOUT"
-			history.Notes = "Valve calibration timed out."
+			history.Notes = "Water valve calibration timed out."
 			s.db.Save(history)
-			errMsg := fmt.Sprintf("Timeout waiting for valve calibration on device %s", device.ID)
+			errMsg := fmt.Sprintf("Timeout waiting for water valve calibration on device %s", device.ID)
 			log.Println(errMsg)
 			s.notifySlackRich(slack.NewErrorMessage("🚨 Calibration Timeout", errMsg))
-			return fmt.Errorf("valve calibration for device %s timed out: %w", device.ID, err)
+			return fmt.Errorf("water valve calibration timed out: %w", err)
 		}
-		log.Printf("Valve calibration completed for device %s", device.ID)
+		log.Printf("Water valve calibration completed for device %s", device.ID)
 	}
 
 	log.Printf("Calibration phase completed for device %s", device.ID)
@@ -290,7 +309,7 @@ func (s *Scheduler) runDeviceTasks(device config.DeviceConfig, history *models.I
 			errMsg := fmt.Sprintf("Device %s, Task %s: Timeout waiting for completion", device.ID, taskID)
 			log.Println(errMsg)
 			s.notifySlackRich(slack.NewErrorMessage("🚨 Task Timeout", errMsg))
-			return fmt.Errorf("task '%s' for device '%s' timed out: %w", taskID, device.ID, err)
+			return fmt.Errorf("task '%s' timed out: %w", taskID, err)
 		}
 
 		log.Printf("Task '%s' completed successfully for device '%s'.", taskID, device.ID)
