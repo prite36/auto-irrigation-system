@@ -76,6 +76,47 @@ func SlackEventsHandler(cfg *config.Config) http.HandlerFunc {
 }
 
 // TriggerJobHandler creates an http.HandlerFunc to manually trigger an irrigation job.
+// TriggerTaskRequest is the request body for the TriggerTaskHandler
+type TriggerTaskRequest struct {
+	DeviceID string `json:"deviceId"`
+}
+
+// TriggerTaskHandler creates an http.HandlerFunc to manually trigger an irrigation task.
+func TriggerTaskHandler(sched *scheduler.Scheduler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req TriggerTaskRequest
+		// Decode the request body.
+		if r.Body != nil && r.ContentLength > 0 {
+			err := json.NewDecoder(r.Body).Decode(&req)
+			if err != nil && err != io.EOF {
+				http.Error(w, "Error parsing request body", http.StatusBadRequest)
+				return
+			}
+		}
+
+		if req.DeviceID != "" {
+			log.Printf("[INFO] Received API request to trigger task for device: %s", req.DeviceID)
+			go func() {
+				if err := sched.RunJobForDevice(req.DeviceID); err != nil {
+					log.Printf("[ERROR] Failed to trigger job for device %s: %v", req.DeviceID, err)
+				}
+			}()
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprintf(w, "Task trigger request for device %s accepted.", req.DeviceID)
+		} else {
+			log.Println("[INFO] Received API request to trigger all tasks.")
+			go sched.RunAllJobsOnce()
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprintln(w, "Task trigger request for all devices accepted.")
+		}
+	}
+}
+
 func TriggerJobHandler(sched *scheduler.Scheduler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("[INFO] Received API request to trigger irrigation job manually.")
