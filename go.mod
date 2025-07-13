@@ -15,6 +15,8 @@ require (
 
 require golang.org/x/sync v0.14.0 // indirect
 
+require github.com/rs/cors v1.11.1
+
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
