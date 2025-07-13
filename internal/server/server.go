@@ -9,6 +9,7 @@ import (
 
 	"github.com/prite36/auto-irrigation-system/internal/config"
 	"github.com/prite36/auto-irrigation-system/internal/scheduler"
+	"github.com/rs/cors"
 )
 
 type StatusResponse struct {
@@ -56,8 +57,13 @@ func New(cfg *config.Config, sched *scheduler.Scheduler) *http.Server {
 	addr := ":3005" // You can make this configurable
 	log.Printf("API Server configured to listen on %s", addr)
 
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+	})
+	handler := c.Handler(mux)
+
 	return &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: handler,
 	}
 }
