@@ -1,12 +1,60 @@
 {
   "payload": [
     {
+      "fr": 50,
+      "to": 72,
+      "sp": 90,
+      "wv": 18,
+      "wvea": "STOP",
+      "ct": 20
+    },
+    {
+      "fr": 54,
+      "to": 75,
+      "sp": 90,
+      "wv": 19,
+      "wvea": "STOP",
+      "ct": 25
+    },
+    {
+      "fr": 67,
+      "to": 83,
+      "sp": 90,
+      "wv": 19,
+      "wvea": "STOP",
+      "ct": 30
+    },
+    {
+      "fr": 78,
+      "to": 88,
+      "sp": 90,
+      "wv": 24,
+      "wvea": "STOP",
+      "ct": 30
+    },
+    {
+      "fr": 83,
+      "to": 89,
+      "sp": 90,
+      "wv": 25,
+      "wvea": "STOP",
+      "ct": 30
+    },
+    {
+      "fr": 92,
+      "to": 99,
+      "sp": 90,
+      "wv": 32,
+      "wvea": "STOP",
+      "ct": 30
+    },
+    {
       "fr": 0,
-      "to": 180,
-      "sp": 80,
-      "wv": 60,
-      "wvea": "PRE_START",
-      "ct": 3
+      "to": 5,
+      "sp": 90,
+      "wv": 5,
+      "wvea": "STOP",
+      "ct": 1
     }
   ],
   "timeoutMinutes": 15
