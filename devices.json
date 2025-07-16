@@ -16,18 +16,6 @@
       ]
     },
     {
-      "id": "sprinkler_02",
-      "type": "iot_sprinkler",
-      "scheduleTimes": [
-        "08:08",
-        "17:08"
-      ],
-      "scheduleDuration": 10,
-      "taskIds": [
-        "task_1"
-      ]
-    },
-    {
       "id": "plant_pot_01",
       "type": "iot_plant_pot",
       "scheduleTimes": [
