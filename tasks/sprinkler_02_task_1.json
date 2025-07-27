@@ -31,46 +31,6 @@
       "wv": 20,
       "wvea": "STOP",
       "ct": 20
-    },
-    {
-      "fr": 70,
-      "to": 83,
-      "sp": 90,
-      "wv": 21,
-      "wvea": "STOP",
-      "ct": 10
-    },
-    {
-      "fr": 70,
-      "to": 83,
-      "sp": 90,
-      "wv": 22,
-      "wvea": "STOP",
-      "ct": 20
-    },
-    {
-      "fr": 80,
-      "to": 88,
-      "sp": 90,
-      "wv": 27,
-      "wvea": "STOP",
-      "ct": 25
-    },
-    {
-      "fr": 83,
-      "to": 91,
-      "sp": 90,
-      "wv": 30,
-      "wvea": "STOP",
-      "ct": 25
-    },
-    {
-      "fr": 0,
-      "to": 5,
-      "sp": 90,
-      "wv": 5,
-      "wvea": "STOP",
-      "ct": 1
     }
   ],
   "timeoutMinutes": 6
