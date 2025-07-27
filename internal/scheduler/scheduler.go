@@ -342,9 +342,11 @@ func (s *Scheduler) waitForFlag(deviceID string, timeout time.Duration, checkFun
 	}
 }
 
-// notifySlackRich sends a rich message to Slack if the client is configured.
+// notifySlackRich sends a rich message to Slack if the client is configured and not rate limited.
 func (s *Scheduler) notifySlackRich(options slackclient.MsgOption) {
 	if s.slackClient != nil {
-		s.slackClient.SendRichMessage(options)
+		if !s.slackClient.SendRichMessageSafe(options) {
+			log.Println("Slack message skipped due to rate limiting")
+		}
 	}
 }
