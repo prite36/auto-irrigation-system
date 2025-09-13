@@ -32,8 +32,7 @@
       "id": "plant_pot_01",
       "type": "iot_plant_pot",
       "scheduleTimes": [
-        "07:56",
-        "16:56"
+        "07:56"
       ],
       "scheduleDuration": 90,
       "taskIds": []
