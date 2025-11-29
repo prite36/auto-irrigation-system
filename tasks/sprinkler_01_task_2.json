@@ -1,29 +1,29 @@
 {
   "payload": [
     {
-      "fr": 355,
-      "to": 62,
+      "fr": 11,
+      "to": 344,
       "sp": 100,
-      "wv": 22,
-      "wvea": "STOP",
-      "ct": 10
-    },
-    {
-      "fr": 355,
-      "to": 62,
-      "sp": 100,
-      "wv": 24,
+      "wv": 15,
       "wvea": "STOP",
       "ct": 5
     },
     {
-      "fr": 355,
-      "to": 62,
+      "fr": 11,
+      "to": 344,
       "sp": 100,
-      "wv": 26,
+      "wv": 16,
       "wvea": "STOP",
-      "ct": 4
+      "ct": 3
+    },
+    {
+      "fr": 11,
+      "to": 344,
+      "sp": 100,
+      "wv": 17,
+      "wvea": "STOP",
+      "ct": 5
     }
   ],
-  "timeoutMinutes": 5
+  "timeoutMinutes": 1
 }
