@@ -4,34 +4,34 @@
       "fr": 37,
       "to": 57,
       "sp": 90,
-      "wv": 18,
+      "wv": 12,
       "wvea": "STOP",
-      "ct": 12
+      "ct": 3
     },
     {
       "fr": 37,
       "to": 57,
       "sp": 90,
-      "wv": 19,
+      "wv": 7,
       "wvea": "STOP",
-      "ct": 10
+      "ct": 6
+    },
+    {
+      "fr": 37,
+      "to": 57,
+      "sp": 90,
+      "wv": 8,
+      "wvea": "STOP",
+      "ct": 8
     },
     {
       "fr": 57,
       "to": 70,
       "sp": 90,
-      "wv": 19,
-      "wvea": "STOP",
-      "ct": 10
-    },
-    {
-      "fr": 37,
-      "to": 70,
-      "sp": 90,
-      "wv": 20,
+      "wv": 11,
       "wvea": "STOP",
       "ct": 10
     }
   ],
-  "timeoutMinutes": 6
+  "timeoutMinutes": 4
 }
