@@ -36,7 +36,7 @@
         "08:16",
         "17:16"
       ],
-      "scheduleDuration": 2,
+      "scheduleDuration": 1,
       "taskIds": [
         "task_1"
       ]
@@ -47,7 +47,7 @@
       "scheduleTimes": [
         "07:56"
       ],
-      "scheduleDuration": 90,
+      "scheduleDuration": 60,
       "taskIds": []
     }
   ]
