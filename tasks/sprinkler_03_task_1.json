@@ -4,9 +4,25 @@
       "fr": 356,
       "to": 329,
       "sp": 100,
-      "wv": 20,
+      "wv": 8,
       "wvea": "NONE",
-      "ct": 10
+      "ct": 5
+    },
+    {
+      "fr": 356,
+      "to": 329,
+      "sp": 100,
+      "wv": 9,
+      "wvea": "NONE",
+      "ct": 6
+    },
+    {
+      "fr": 356,
+      "to": 329,
+      "sp": 100,
+      "wv": 11,
+      "wvea": "NONE",
+      "ct": 5
     },
     {
       "fr": 0,
@@ -17,5 +33,5 @@
       "ct": 1
     }
   ],
-  "timeoutMinutes": 1
+  "timeoutMinutes": 2
 }
