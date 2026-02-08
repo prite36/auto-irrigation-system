@@ -58,7 +58,10 @@ func New(cfg *config.Config, sched *scheduler.Scheduler) *http.Server {
 	log.Printf("API Server configured to listen on %s", addr)
 
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Requested-With"},
+		AllowCredentials: false,
 	})
 	handler := c.Handler(mux)
 
