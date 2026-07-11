@@ -4,8 +4,7 @@
       "id": "sprinkler_01",
       "type": "iot_sprinkler",
       "scheduleTimes": [
-        "08:00",
-        "17:00"
+        "08:00"
       ],
       "scheduleDuration": 10,
       "taskIds": [
@@ -20,8 +19,7 @@
       "id": "sprinkler_02",
       "type": "iot_sprinkler",
       "scheduleTimes": [
-        "08:08",
-        "17:08"
+        "08:08"
       ],
       "scheduleDuration": 8,
       "taskIds": [
@@ -34,8 +32,7 @@
       "id": "sprinkler_03",
       "type": "iot_sprinkler",
       "scheduleTimes": [
-        "08:16",
-        "17:16"
+        "08:16"
       ],
       "scheduleDuration": 4,
       "taskIds": [
