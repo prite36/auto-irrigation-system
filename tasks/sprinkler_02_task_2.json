@@ -1,21 +1,29 @@
 {
   "payload": [
     {
-      "fr": 37,
-      "to": 70,
+      "fr": 70,
+      "to": 78,
       "sp": 90,
       "wv": 10,
       "wvea": "STOP",
-      "ct": 8
+      "ct": 10
     },
     {
-      "fr": 70,
-      "to": 83,
+      "fr": 78,
+      "to": 95,
       "sp": 90,
-      "wv": 19,
+      "wv": 22,
       "wvea": "STOP",
       "ct": 10
+    },
+    {
+      "fr": 0,
+      "to": 5,
+      "sp": 90,
+      "wv": 0,
+      "wvea": "STOP",
+      "ct": 1
     }
   ],
-  "timeoutMinutes": 4
+  "timeoutMinutes": 3
 }
