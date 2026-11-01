@@ -6,7 +6,7 @@
       "sp": 100,
       "wv": 10,
       "wvea": "STOP",
-      "ct": 7
+      "ct": 6
     },
     {
       "fr": 297,
@@ -14,7 +14,7 @@
       "sp": 100,
       "wv": 12,
       "wvea": "STOP",
-      "ct": 6
+      "ct": 4
     }
   ],
   "timeoutMinutes": 4

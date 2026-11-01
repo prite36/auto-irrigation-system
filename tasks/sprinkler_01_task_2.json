@@ -14,9 +14,9 @@
       "sp": 100,
       "wv": 12,
       "wvea": "STOP",
-      "ct": 5
+      "ct": 4
     }
-    
+
   ],
   "timeoutMinutes": 2
 }
